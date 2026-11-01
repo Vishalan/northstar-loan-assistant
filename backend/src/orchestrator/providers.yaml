@@ -1,0 +1,64 @@
+# LLM providers. Pick one with LLM_PROVIDER (ANTHROPIC_MODE is the older name for the same setting).
+# Add a provider here without touching code. Kinds:
+#   anthropic  the Anthropic API, or anything that speaks the Messages API: proxies, Ollama (>= 0.14),
+#              vLLM, LiteLLM. Set base_url / base_url_env for the endpoint.
+#   bedrock    Claude on AWS Bedrock (AWS credentials from the usual chain; region from AWS_REGION)
+#   vertex     Claude on Google Vertex AI (ANTHROPIC_VERTEX_PROJECT_ID, CLOUD_ML_REGION)
+# Fields:
+#   models            ids verified to be served as asked; anything else falls back to default_model.
+#                     "any" accepts whatever MODEL_PLANNER names (self-hosted, cloud ids that differ by region).
+#   supports_effort   send output_config.effort (Claude models on the Anthropic API)
+#   no_effort_models  models on this provider that reject effort
+#   server_fallbacks  the provider supports the server-side refusal fallback beta
+#   key_optional      a key is not needed (local endpoints); the provider is enabled once its URL is set
+#   request_params    merged into every request, e.g. turning off an open model's thinking phase
+
+native:
+  kind: anthropic
+  key_env: ANTHROPIC_API_KEY
+  models: [claude-haiku-5-5, claude-sonnet-5-5, claude-opus-5-5]
+  default_model: claude-haiku-5-5
+  default_failover: claude-opus-5-5
+  supports_effort: true
+  server_fallbacks: true
+
+# Anthropic-compatible proxy. It was observed answering a request for claude-haiku-5-5 with claude-opus-4-8,
+# so only the models it really serves are listed.
+abhi:
+  kind: anthropic
+  key_env: ANTHROPIC_ABHI_API_KEY
+  base_url_env: ANTHROPIC_ABHI_BASE_URL
+  base_url: https://opus.abhibots.com
+  models: [claude-haiku-4-5, claude-sonnet-5, claude-opus-5-5, claude-opus-5, claude-opus-4-8, claude-fable-5-1]
+  default_model: claude-haiku-4-5
+  default_failover: claude-opus-5-5
+  supports_effort: true
+  no_effort_models: [claude-haiku-4-5]
+
+# Open-weight models on our own GPU (Ollama's Messages API). See deploy/selfhosted/.
+selfhosted:
+  kind: anthropic
+  key_env: SELFHOSTED_LLM_API_KEY
+  key_optional: true
+  base_url_env: SELFHOSTED_LLM_URL
+  models: any
+  default_model: qwen3:14b
+  default_failover: ""
+  supports_effort: false
+  # Qwen3 thinks before every step by default: 2.9 s vs 0.8 s per planning call on the RTX 3090, same tool choice
+  request_params: {thinking: {type: disabled}}
+
+# Claude through the cloud providers' own endpoints (not exercised here: no AWS or GCP account on the build machine).
+bedrock:
+  kind: bedrock
+  models: any
+  default_model: ""
+  default_failover: ""
+  supports_effort: true
+
+vertex:
+  kind: vertex
+  models: any
+  default_model: ""
+  default_failover: ""
+  supports_effort: true

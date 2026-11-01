@@ -1,6 +1,7 @@
 "use client";
 
-// VoiceController: browser voice mode on top of the Web Speech API.
+// VoiceController: voice mode. Recognition is the local/remote speech service or the browser's Web Speech
+// API; speech output is a swappable Speaker (browser voice, or a server voice: see ./speech-output.ts).
 //
 // State machine
 //   idle ──start()──▶ listening ──interim──▶ user_speaking ──final + 250ms quiet──▶ thinking
@@ -11,6 +12,7 @@
 // All browser and app dependencies are injected (VoiceDeps) so the controller can be driven
 // with fakes; the pure text logic lives in ./voice-utils.ts and is unit-tested.
 
+import { makeSpeaker, type Speaker } from "./speech-output";
 import type { EngineContext, EngineEvent } from "./turn-engine";
 import type { ActionProposal, ClientMetricName, ConfirmResponse } from "./types";
 import {
@@ -98,17 +100,6 @@ export function voiceSupported(): boolean {
   return typeof window !== "undefined" && (!!getRecognitionCtor() || !!STT_URL) && "speechSynthesis" in window;
 }
 
-function pickVoice(): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
-  const by = (lang: string) =>
-    voices.filter((v) => v.lang.replace("_", "-").toLowerCase() === lang.toLowerCase());
-  for (const lang of ["en-IN", "en-GB", "en-US"]) {
-    const list = by(lang);
-    if (list.length) return list.find((v) => /google|natural|neural|premium|enhanced/i.test(v.name)) ?? list[0];
-  }
-  return voices.find((v) => v.lang.toLowerCase().startsWith("en")) ?? null;
-}
-
 export class VoiceController {
   private snap: VoiceSnapshot = {
     state: "idle",
@@ -124,7 +115,7 @@ export class VoiceController {
   private subs = new Set<() => void>();
   private rec: SR | null = null;
   private unsubscribeEngine: (() => void) | null = null;
-  private voice: SpeechSynthesisVoice | null = null;
+  private speaker: Speaker | null = null;
 
   // user-side
   private pendingFinal = "";
@@ -138,7 +129,6 @@ export class VoiceController {
   private messageId: string | null = null;
   private sentences = new SentenceBuffer();
   private outstanding = 0;
-  private utterances: SpeechSynthesisUtterance[] = []; // keep refs (Chrome GC bug drops onend)
   private currentSentence: string | null = null; // speakable form, for echo detection
   private currentRaw: string | null = null; // display form, for spoken_text
   private spoken: string[] = [];
@@ -207,12 +197,10 @@ export class VoiceController {
       return;
     }
 
-    const loadVoice = () => {
-      this.voice = pickVoice();
-      this.update({ voiceName: this.voice ? `${this.voice.name} (${this.voice.lang})` : null });
-    };
-    loadVoice();
-    window.speechSynthesis.onvoiceschanged = loadVoice;
+    this.speaker ??= makeSpeaker(
+      (voiceName) => this.update({ voiceName }),
+      (ms) => this.deps.metric("voice.tts_synth", ms),
+    );
 
     // Prefer the local speech service (Parakeet on this machine); fall back to the browser's recogniser.
     let rec: SR;
@@ -580,11 +568,7 @@ export class VoiceController {
     if (!speakable || !/[\p{L}\p{N}]/u.test(speakable)) return;
     const gen = this.gen;
     this.said.push({ text: speakable, at: performance.now() });
-    const u = new SpeechSynthesisUtterance(speakable);
-    if (this.voice) u.voice = this.voice;
-    u.lang = this.voice?.lang ?? "en-IN";
-    u.rate = 1.04;
-    u.onstart = () => {
+    const onstart = () => {
       if (gen !== this.gen) return;
       this.currentSentence = speakable;
       this.currentRaw = filler ? null : stripMarkdown(sentence).trim();
@@ -606,7 +590,6 @@ export class VoiceController {
       this.currentRaw = null;
       this.speakingEndedAt = performance.now();
       if (this.outstanding === 0) {
-        this.utterances = [];
         if (this.endAfterSpeech) {
           this.endAfterSpeech = false;
           this.stop(); // goodbye has been said: end the call
@@ -618,19 +601,15 @@ export class VoiceController {
         }
       }
     };
-    u.onend = done;
-    u.onerror = done;
     this.outstanding++;
-    this.utterances.push(u);
-    window.speechSynthesis.speak(u);
+    this.speaker?.speak({ text: speakable, onstart, onend: done });
   }
 
   private stopSpeaking() {
     this.outstanding = 0;
-    this.utterances = [];
     this.currentSentence = null;
     this.currentRaw = null;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    this.speaker?.cancel();
   }
 
   private clearTimers() {

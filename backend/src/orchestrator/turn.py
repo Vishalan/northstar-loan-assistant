@@ -196,8 +196,7 @@ class Turn:
             if out.data.get("summary"):
                 facts.append(out.data["summary"])
         del facts[:-10]
-        self.svc.db.execute(
-            "INSERT OR REPLACE INTO turns VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        self.svc.db.save_turn(
             (self.turn_id, self.session["session_id"], self.session["customer_id"], self.channel, self.mode,
              self.text, self.answer, json.dumps([n for n, _ in self.outputs]),
              "interrupted" if interrupted else self.status, self.first_status_ms, self.first_token_ms, self._ms(),

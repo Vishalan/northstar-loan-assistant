@@ -172,7 +172,7 @@ async def explain_emi_change(ctx: ToolContext, loan_id: str | None = None) -> To
     card = {"type": "emi_change", "title": "Why your EMI changed", "subtitle": f"{loan['product_name']} · {loan['loan_id']}",
             "metrics": [{"label": "Previous EMI", "value": inr(f["old_emi"])},
                         {"label": "Current EMI", "value": inr(f["new_emi"]), "emphasis": True,
-                         "delta": f"+{inr(f['emi_change'])}"},
+                         "delta": ("+" if f["emi_change"] >= 0 else "−") + inr(abs(f["emi_change"]))},  # a rate cut lowers it
                         {"label": "Rate", "value": f"{pct(f['old_rate'])} → {pct(f['new_rate'])}"},
                         {"label": "Effective", "value": fmt_date(f["effective_from"])}],
             "notes": [cur["reason"] + ".", decision.explanation],

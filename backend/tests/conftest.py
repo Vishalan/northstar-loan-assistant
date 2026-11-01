@@ -9,6 +9,7 @@ from pathlib import Path
 
 _tmp = tempfile.mkdtemp(prefix="northstar-tests-")
 os.environ.setdefault("CHAOS_PRESET", "fast")
+os.environ["DEMO_MODE"] = "true"
 os.environ.setdefault("MOCKS_DB", str(Path(_tmp) / "mocks.db"))
 os.environ.setdefault("APP_DB", str(Path(_tmp) / "app.db"))
 os.environ["LLM_MODE"] = "fallback"

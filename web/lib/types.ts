@@ -153,7 +153,8 @@ export type LatencyMetrics = {
   }[];
   client: StageStat[];
 };
-export type ClientMetricName = "voice.eos_to_first_audio" | "voice.bargein_stop" | "voice.echo_dropped" | "text.first_token_render";
+export type ClientMetricName = "voice.eos_to_first_audio" | "voice.bargein_stop" | "voice.echo_dropped"
+  | "voice.tts_synth" | "text.first_token_render";
 
 export type ChaosPreset = "calm" | "realistic" | "bad_day";
 export type ChaosState = {

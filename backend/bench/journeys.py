@@ -24,6 +24,7 @@ tmp = tempfile.mkdtemp(prefix="northstar-bench-")
 os.environ.setdefault("MOCKS_DB", str(Path(tmp) / "mocks.db"))
 os.environ.setdefault("APP_DB", str(Path(tmp) / "app.db"))
 os.environ.setdefault("LLM_MODE", "fallback")
+os.environ.setdefault("DEMO_MODE", "true")  # logs in with the on-screen demo OTP
 os.environ.setdefault("TURN_RATE_LIMIT", "100000")
 
 JOURNEYS = {
@@ -140,7 +141,13 @@ async def main():
         lines.append("")
     out = ROOT.parent / "docs" / "perf"
     out.mkdir(parents=True, exist_ok=True)
-    name = f"journeys-{os.environ['LLM_MODE']}-{'cold' if args.cold else 'warm'}.md"
+    planner = os.environ["LLM_MODE"]
+    if planner == "llm":  # name the report after the model that ran, e.g. journeys-claude-haiku-5-5-cold.md
+        from orchestrator.config import Settings
+        from orchestrator.llm import PROVIDERS
+        settings = Settings()
+        planner = settings.models_for(PROVIDERS[settings.llm_provider])[0].replace(":", "-")
+    name = f"journeys-{planner}-{'cold' if args.cold else 'warm'}.md"
     (out / name).write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 

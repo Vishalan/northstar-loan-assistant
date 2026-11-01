@@ -32,26 +32,24 @@ def _flag(name: str, default: bool) -> bool:
     return os.environ.get(name, str(default)).lower() in ("1", "true", "yes", "on")
 
 
-def _has_llm_credentials(mode: str = "native") -> bool:
-    if mode == "abhi":
-        return bool(os.environ.get("ANTHROPIC_ABHI_API_KEY"))
-    if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
-        return True
-    return (Path.home() / ".config" / "anthropic").exists()
+DEV_JWT_SECRET = "dev-jwt-secret-change-me-in-production-0123"
+DEV_ADMIN_TOKEN = "dev-admin-token"
+DEV_SERVICE_TOKEN = "dev-service-token"
 
 
 @dataclass
 class Settings:
     mocks_url: str = field(default_factory=lambda: os.environ.get("MOCKS_URL", "http://localhost:8100"))
     packs_dir: Path = field(default_factory=lambda: Path(os.environ.get("PACKS_DIR", BACKEND_DIR / "packs")))
-    jwt_secret: str = field(default_factory=lambda: os.environ.get("JWT_SECRET", "dev-jwt-secret-change-me-in-production-0123"))
-    admin_token: str = field(default_factory=lambda: os.environ.get("ADMIN_TOKEN", "dev-admin-token"))
-    demo_mode: bool = field(default_factory=lambda: _flag("DEMO_MODE", True))
+    jwt_secret: str = field(default_factory=lambda: os.environ.get("JWT_SECRET", DEV_JWT_SECRET))
+    admin_token: str = field(default_factory=lambda: os.environ.get("ADMIN_TOKEN", DEV_ADMIN_TOKEN))
+    # demo OTP codes on screen, persona list, chaos controls. Off unless asked for: `make up` and .env.example turn it on
+    demo_mode: bool = field(default_factory=lambda: _flag("DEMO_MODE", False))
     today: date = field(default_factory=lambda: date.fromisoformat(os.environ.get("DEMO_TODAY", "2026-10-27")))
     llm_mode: str = field(default_factory=lambda: os.environ.get("LLM_MODE", "auto"))  # auto | llm | fallback
-    # which Anthropic endpoint and key: native (ANTHROPIC_API_KEY) | abhi (proxy, ANTHROPIC_ABHI_API_KEY)
-    anthropic_mode: str = field(default_factory=lambda: os.environ.get("ANTHROPIC_MODE", "native").lower())
-    abhi_base_url: str = field(default_factory=lambda: os.environ.get("ANTHROPIC_ABHI_BASE_URL", "https://opus.abhibots.com"))
+    # which provider in orchestrator/providers.yaml: native | abhi | selfhosted | bedrock | vertex | any you add
+    llm_provider: str = field(default_factory=lambda: (
+        os.environ.get("LLM_PROVIDER") or os.environ.get("ANTHROPIC_MODE") or "native").lower())
     model_planner: str = field(default_factory=lambda: os.environ.get("MODEL_PLANNER", "claude-haiku-5-5"))
     # tried automatically when the planner model errors (rate limit, overload, outage); empty = no failover
     model_failover: str = field(default_factory=lambda: os.environ.get("MODEL_FAILOVER", ""))
@@ -63,17 +61,38 @@ class Settings:
     turn_deadline_voice_s: float = 1.8
     max_tool_rounds: int = 4
 
+    def check_secrets(self) -> None:
+        """Refuse to start outside demo mode with the development secrets that ship in this repo."""
+        if self.demo_mode:
+            return
+        weak = [name for name, value, dev in (
+            ("JWT_SECRET", self.jwt_secret, DEV_JWT_SECRET), ("ADMIN_TOKEN", self.admin_token, DEV_ADMIN_TOKEN),
+            ("SERVICE_TOKEN", os.environ.get("SERVICE_TOKEN", DEV_SERVICE_TOKEN), DEV_SERVICE_TOKEN))
+            if value == dev or len(value) < 24]
+        if weak:
+            raise RuntimeError(f"DEMO_MODE is off but {', '.join(weak)} still use development values (or are shorter "
+                               "than 24 characters). Set real secrets, or DEMO_MODE=true for a local demo.")
+
     @property
     def llm_enabled(self) -> bool:
         if self.llm_mode in ("fallback", "stub"):  # stub simulates model latency and never calls the API
             return False
         if self.llm_mode == "llm":
             return True
-        return _has_llm_credentials(self.anthropic_mode)
+        from orchestrator.llm import PROVIDERS
 
-    def api_key(self) -> str | None:
-        """The key for the selected provider; None lets the SDK resolve native credentials itself."""
-        return os.environ.get("ANTHROPIC_ABHI_API_KEY") if self.anthropic_mode == "abhi" else os.environ.get("ANTHROPIC_API_KEY")
+        provider = PROVIDERS.get(self.llm_provider)
+        return bool(provider and provider.has_credentials())
+
+    def models_for(self, provider) -> tuple[str, str | None]:
+        """Planner and failover model for a provider. <PROVIDER>_MODEL / <PROVIDER>_FAILOVER win; providers that
+        accept any id (self-hosted, Bedrock, Vertex) ignore MODEL_PLANNER, which names Claude API ids."""
+        prefix = provider.name.upper()
+        model = os.environ.get(f"{prefix}_MODEL") or (self.model_planner if provider.models is not None else provider.default_model)
+        failover = os.environ.get(f"{prefix}_FAILOVER")
+        if failover is None and provider.models is not None:
+            failover = self.model_failover or None
+        return model, failover
 
     def system_urls(self) -> dict[str, str]:
         names = ["crm", "loans", "payments", "policy", "ops", "cards"]

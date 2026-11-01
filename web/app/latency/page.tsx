@@ -153,6 +153,7 @@ export default function LatencyPage() {
 const CLIENT_LABELS: Record<string, string> = {
   "voice.eos_to_first_audio": "Voice · end of speech → first audio",
   "voice.bargein_stop": "Voice · barge-in → audio stopped",
+  "voice.tts_synth": "Voice · server speech synthesis per sentence",
   "text.first_token_render": "Text · send → first words rendered",
 };
 

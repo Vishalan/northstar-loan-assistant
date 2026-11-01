@@ -220,6 +220,39 @@ def test_proxy_provider_only_allows_models_it_really_serves():
     assert not same_model("claude-haiku-5-5", "claude-opus-4-8")
 
 
+def test_self_hosted_provider_takes_any_model_and_ignores_claude_settings(monkeypatch):
+    from orchestrator.config import Settings
+    from orchestrator.llm import LLM, load_providers
+    monkeypatch.setenv("SELFHOSTED_LLM_URL", "http://gpu-box:11434")
+    monkeypatch.setenv("MODEL_PLANNER", "claude-haiku-5-5")
+    monkeypatch.setenv("MODEL_FAILOVER", "claude-opus-5-5")
+    monkeypatch.delenv("SELFHOSTED_MODEL", raising=False)
+    monkeypatch.delenv("SELFHOSTED_FAILOVER", raising=False)
+    provider = load_providers()["selfhosted"]
+    assert provider.has_credentials()  # a URL is enough; no key needed
+    model, failover = Settings().models_for(provider)
+    assert (model, failover) == ("qwen3:14b", None)  # MODEL_PLANNER names a Claude id, not sent to Ollama
+    llm = LLM(provider, None, model, "low", failover)
+    assert str(llm.client.base_url).startswith("http://gpu-box:11434")
+    assert llm._kwargs(model) == {"thinking": {"type": "disabled"}} and llm.use_server_fallbacks is False
+    llm.swap("qwen2.5-coder:14b")
+    assert llm.model == "qwen2.5-coder:14b"
+    monkeypatch.setenv("SELFHOSTED_MODEL", "llama3.3:70b")
+    assert Settings().models_for(provider)[0] == "llama3.3:70b"
+
+
+def test_providers_are_data(tmp_path, monkeypatch):
+    from orchestrator.llm import load_providers
+    path = tmp_path / "providers.yaml"
+    path.write_text("gateway:\n  kind: anthropic\n  key_env: GATEWAY_KEY\n  base_url: https://llm.internal\n"
+                    "  models: [claude-haiku-5-5]\n  default_model: claude-haiku-5-5\n  default_failover: ''\n")
+    monkeypatch.delenv("GATEWAY_KEY", raising=False)
+    gateway = load_providers(path)["gateway"]
+    assert not gateway.has_credentials()
+    monkeypatch.setenv("GATEWAY_KEY", "k")
+    assert gateway.has_credentials() and gateway.base_url == "https://llm.internal"
+
+
 async def test_promise_without_tool_is_nudged_into_a_tool_call(api):
     fake = FakeLLM([
         msg(text("I'll check your foreclosure options now.")),           # announces, calls nothing

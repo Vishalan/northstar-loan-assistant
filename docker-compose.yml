@@ -19,6 +19,7 @@ services:
     env_file: [{path: .env, required: false}]
     environment:
       MOCKS_URL: http://mocks:8100
+      DEMO_MODE: ${DEMO_MODE:-true}
       REDIS_URL: redis://redis:6379/0
       APP_DB: /data/app.db
     volumes: [appdata:/data]

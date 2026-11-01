@@ -80,3 +80,46 @@ def test_websocket_transcribes_streamed_audio(client, name, expect):
     assert expect in final["text"].lower(), final
     assert final["decode_ms"] < 1500
     assert messages[0]["type"] == "start"
+
+
+def test_openai_compatible_recognizer_sends_one_wav_per_utterance(monkeypatch):
+    import httpx
+
+    from speech.engines import OpenAITranscription
+    seen = {}
+
+    def handler(request: httpx.Request):
+        seen["url"] = str(request.url)
+        seen["body"] = request.read()
+        return httpx.Response(200, json={"text": " what is my next EMI "})
+
+    monkeypatch.setenv("ASR_URL", "http://gpu-box:8000/")
+    rec = OpenAITranscription("Systran/faster-whisper-large-v3")
+    rec._client = httpx.Client(transport=httpx.MockTransport(handler))
+    text, ms = rec.transcribe(np.zeros(8000, np.float32))
+    assert text == "what is my next EMI" and ms >= 0
+    assert seen["url"] == "http://gpu-box:8000/v1/audio/transcriptions"
+    assert b"RIFF" in seen["body"] and b"Systran/faster-whisper-large-v3" in seen["body"]
+    assert rec.partials is False  # no live partials over the network
+    assert rec.transcribe(np.zeros(100, np.float32)) == ("", 0.0)
+
+
+def test_tts_endpoint_uses_the_configured_engine(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import speech.app as app_module
+
+    class FakeTTS:
+        engine, model_id, voice = "fake", "kokoro", "af_heart"
+
+        async def synthesize(self, text, voice=None):
+            return b"ID3" + text.encode(), "audio/mpeg"
+
+    monkeypatch.setattr(app_module, "_synthesizer", FakeTTS())
+    monkeypatch.setattr(app_module, "load_model", lambda: None)
+    client = TestClient(app_module.app)
+    r = client.post("/v1/tts", json={"text": "Your EMI is due on 5 November."})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/mpeg" and r.content.startswith(b"ID3")
+    assert client.post("/v1/tts", json={"text": " "}).status_code == 400
+    monkeypatch.setattr(app_module, "_synthesizer", False)
+    assert client.post("/v1/tts", json={"text": "hi"}).status_code == 404

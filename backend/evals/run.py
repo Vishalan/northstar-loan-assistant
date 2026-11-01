@@ -28,6 +28,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
 
+def _planner_model(settings) -> str:
+    from orchestrator.llm import PROVIDERS
+    return settings.models_for(PROVIDERS[settings.llm_provider])[0]
+
+
 def load_cases(only: str | None) -> list[dict]:
     import yaml
 
@@ -153,6 +158,7 @@ async def main():
         os.environ.setdefault("APP_DB", str(Path(tmp) / "app.db"))
         os.environ["CHAOS_PRESET"] = args.chaos
         os.environ.setdefault("LLM_MODE", "fallback")
+        os.environ.setdefault("DEMO_MODE", "true")  # logs in with the on-screen demo OTP
         os.environ.setdefault("TURN_RATE_LIMIT", "1000")  # the eval replays many turns per customer
         from nsplatform.runtime import build_platform
         from mocks.app import app as mocks_app
@@ -185,7 +191,8 @@ async def main():
     summary = {
         "run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "target": args.url or f"in-process (chaos={args.chaos}, planner={planner}"
-                  + (f", model={settings.model_planner}" if planner == "llm" else "") + ")",
+                  + (f", provider={settings.llm_provider}, model={_planner_model(settings)}" if planner == "llm" else "")
+                  + ")",
         "total": len(results), "passed": sum(r["passed"] for r in results),
         "figure_accuracy": round(sum(r["figures_ok"] for r in with_figures) / len(with_figures), 3) if with_figures else None,
         "grounding_replacements": sum(1 for r in results if r.get("grounding_replaced")),

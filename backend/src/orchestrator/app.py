@@ -46,12 +46,11 @@ class Services:
         self.db = get_db()
         self.llm = None
         if settings.llm_enabled:
-            if settings.anthropic_mode not in PROVIDERS:
-                raise RuntimeError(f"ANTHROPIC_MODE must be one of {list(PROVIDERS)}")
-            provider = PROVIDERS[settings.anthropic_mode]
-            self.llm = LLM(provider, settings.api_key(), settings.model_planner, settings.planner_effort,
-                           settings.model_failover or None, settings.llm_fallbacks,
-                           base_url=settings.abhi_base_url if provider.name == "abhi" else None)
+            if settings.llm_provider not in PROVIDERS:
+                raise RuntimeError(f"LLM_PROVIDER must be one of {list(PROVIDERS)}")
+            provider = PROVIDERS[settings.llm_provider]
+            model, failover = settings.models_for(provider)
+            self.llm = LLM(provider, None, model, settings.planner_effort, failover, settings.llm_fallbacks)
             for warning in self.llm.warnings:
                 logging.getLogger("orchestrator").warning(warning)
         self.turns: dict[str, tuple[Turn, asyncio.Task]] = {}
@@ -59,6 +58,7 @@ class Services:
 
 def create_app(settings: Settings | None = None, platform=None) -> FastAPI:
     settings = settings or Settings()
+    settings.check_secrets()
     holder: dict[str, Services] = {}
 
     @asynccontextmanager

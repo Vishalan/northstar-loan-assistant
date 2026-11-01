@@ -69,6 +69,7 @@ cases:
     customer: C1002
     question: Show me the payments that failed in the last six months and explain what happened.
     contains: ["10 Jun 2026", "10 Sep 2026", "insufficient", "mandate"]
+    case_insensitive: true  # "Insufficient funds" at the start of a sentence is the same fact
     tools: [loans_payment_history]
   - id: L15-charged-twice
     customer: C1002

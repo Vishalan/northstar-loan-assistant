@@ -262,3 +262,20 @@ def test_identifiers_are_not_figures():
     assert unsupported("Loan PL-20391 is filed as SR-261101-DA197A; your EMI is ₹17,416.", allowed) == []
     assert unsupported("Transaction TX-18822-20260910-1 was charged twice.", allowed) == []
     assert unsupported("You owe ₹20,391 more.", allowed) == ["₹20,391"]
+
+
+def test_refuses_to_start_outside_demo_mode_with_dev_secrets(monkeypatch):
+    from orchestrator.config import Settings
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("SERVICE_TOKEN", raising=False)
+    monkeypatch.setenv("DEMO_MODE", "false")
+    with pytest.raises(RuntimeError, match="JWT_SECRET, ADMIN_TOKEN, SERVICE_TOKEN"):
+        Settings().check_secrets()
+    monkeypatch.setenv("JWT_SECRET", "x" * 40)
+    monkeypatch.setenv("ADMIN_TOKEN", "y" * 32)
+    monkeypatch.setenv("SERVICE_TOKEN", "z" * 32)
+    Settings().check_secrets()
+    monkeypatch.setenv("DEMO_MODE", "true")
+    monkeypatch.delenv("JWT_SECRET")
+    Settings().check_secrets()  # a local demo may use the shipped values
