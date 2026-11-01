@@ -11,7 +11,7 @@ an adapter you can point at a cloud service or your own hardware.
 | | |
 |---|---|
 | **Demo video** (60 s) | https://vishalan.com/northstar-loan-assistant/demo/ (file: [docs/demo/northstar.mp4](docs/demo/northstar.mp4)) |
-| **Interactive architecture**, swappable modules and a load simulator for 1,000 concurrent conversations | https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH |
+| **Interactive architecture**, swappable modules and a load simulator for 1,000 concurrent conversations | https://vishalan.com/northstar-loan-assistant/arch/ (source: [docs/arch/index.html](docs/arch/index.html); mirror: https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH) |
 | **Architecture write-up**: decisions, trade-offs, scale, production path | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **Latency and performance** measurements, with the report behind each number | [docs/performance.md](docs/performance.md) |
 | **Run it locally** (no keys needed) | `make install && make up`, then open http://localhost:3000 ([details below](#run-it-no-keys-needed)) |

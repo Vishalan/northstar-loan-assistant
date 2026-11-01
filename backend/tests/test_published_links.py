@@ -15,9 +15,11 @@ SHARED_PATHS = [
     "docs/performance.md",        # .../blob/main/docs/performance.md
     "docs/demo/index.html",       # https://vishalan.com/northstar-loan-assistant/demo/ (GitHub Pages from /docs)
     "docs/demo/northstar.mp4",
+    "docs/arch/index.html",       # https://vishalan.com/northstar-loan-assistant/arch/
     "docs/.nojekyll",
 ]
-ARCHITECTURE_PAGE = "https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH"
+ARCHITECTURE_PAGE = "https://vishalan.com/northstar-loan-assistant/arch/"
+ARCHITECTURE_MIRROR = "https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH"
 DEMO_PAGE = "https://vishalan.com/northstar-loan-assistant/demo/"
 
 
@@ -34,7 +36,7 @@ def test_shared_paths_exist():
 
 def test_readme_start_here_links_and_promises():
     assert "## Start here" in README
-    assert ARCHITECTURE_PAGE in README and DEMO_PAGE in README
+    assert ARCHITECTURE_PAGE in README and ARCHITECTURE_MIRROR in README and DEMO_PAGE in README
     for path in ("ARCHITECTURE.md", "docs/performance.md", "docs/demo/northstar.mp4"):
         assert f"]({path})" in README, path
     # "runs without any API keys" and "connect Claude or another provider, including self-hosted"
@@ -46,6 +48,12 @@ def test_readme_start_here_links_and_promises():
 def test_demo_page_plays_the_video_in_the_repo():
     page = (ROOT / "docs/demo/index.html").read_text()
     assert 'src="northstar.mp4"' in page and "github.com/Vishalan/northstar-loan-assistant" in page
+
+
+def test_architecture_page_is_a_full_document():
+    page = (ROOT / "docs/arch/index.html").read_text()
+    assert page.startswith("<!doctype html>") and "<title>Northstar Architecture</title>" in page
+    assert not re.search(r"blue ?machines|interview|assignment", page, re.I)
 
 
 def test_internal_readme_anchors_resolve():

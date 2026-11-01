@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Northstar Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (max 1120px) with a sticky section nav; the architecture map and the simulator
+   are the two working surfaces, everything else supports them. Palette and faces are the product's own. */
+:root {
+  --bg: #f4f1eb; --surface: #fffdf9; --surface-2: #f9f6f0; --sunken: #ece7de;
+  --ink: #17212b; --ink-2: #44505d; --muted: #6f7782; --line: #e2dbcf; --line-strong: #cfc6b6;
+  --brand: #0d4a5e; --brand-2: #136a80; --brand-soft: #e1edef; --brand-ink: #ffffff;
+  --accent: #b9802a; --accent-soft: #f6ead3;
+  --ok: #2b7a4b; --ok-soft: #e3f1e8; --warn: #a8690f; --warn-soft: #fbefd9; --bad: #b1352c; --bad-soft: #f8e2de;
+  --shadow: 0 1px 0 rgb(23 33 43 / .04), 0 1px 3px rgb(23 33 43 / .06);
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --ui: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1318; --surface: #131b22; --surface-2: #17212a; --sunken: #0a0f13;
+  --ink: #ebe6dc; --ink-2: #b9bec4; --muted: #8b949e; --line: #233039; --line-strong: #31414c;
+  --brand: #5bb2c8; --brand-2: #7cc6d8; --brand-soft: #142f39; --brand-ink: #062029;
+  --accent: #e2aa53; --accent-soft: #33280f;
+  --ok: #63c08a; --ok-soft: #12291c; --warn: #e0a24a; --warn-soft: #33250f; --bad: #ec7a6e; --bad-soft: #3a1a17;
+  --shadow: 0 1px 0 rgb(0 0 0 / .3); color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0d1318; --surface: #131b22; --surface-2: #17212a; --sunken: #0a0f13;
+  --ink: #ebe6dc; --ink-2: #b9bec4; --muted: #8b949e; --line: #233039; --line-strong: #31414c;
+  --brand: #5bb2c8; --brand-2: #7cc6d8; --brand-soft: #142f39; --brand-ink: #062029;
+  --accent: #e2aa53; --accent-soft: #33280f;
+  --ok: #63c08a; --ok-soft: #12291c; --warn: #e0a24a; --warn-soft: #33250f; --bad: #ec7a6e; --bad-soft: #3a1a17;
+  --shadow: 0 1px 0 rgb(0 0 0 / .3); color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 15px; line-height: 1.55; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.08; font-weight: 600; }
+h2 { font-size: clamp(23px, 3vw, 30px); font-weight: 600; line-height: 1.15; }
+h3 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+.lede { color: var(--ink-2); max-width: 66ch; font-size: 16.5px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--brand-2); }
+.num { font-family: var(--display); font-variant-numeric: tabular-nums lining-nums; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+a { color: var(--brand-2); }
+:focus-visible { outline: 2px solid var(--brand-2); outline-offset: 2px; border-radius: 4px; }
+
+/* nav */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: color-mix(in oklab, var(--surface) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; gap: 18px; height: 52px; overflow-x: auto; scrollbar-width: none; }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 17px; color: var(--ink); white-space: nowrap; text-decoration: none; }
+.brand svg { flex: none; }
+.nav a.link { color: var(--ink-2); text-decoration: none; font-size: 13.5px; font-weight: 500; white-space: nowrap; padding: 4px 2px; border-bottom: 2px solid transparent; }
+.nav a.link:hover, .nav a.link.on { color: var(--ink); border-bottom-color: var(--accent); }
+
+section { padding-block: 44px; border-bottom: 1px solid var(--line); }
+section:last-of-type { border-bottom: 0; }
+.head { display: grid; gap: 10px; margin-bottom: 22px; }
+
+/* hero */
+.hero { padding-block: 40px 34px; }
+.hero .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px; align-items: end; }
+.targets { display: grid; gap: 10px; }
+.target { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: baseline; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.target .num { font-size: 28px; font-weight: 600; color: var(--brand); grid-row: span 2; min-width: 4.6ch; }
+.target b { font-weight: 600; font-size: 14px; }
+.target span { color: var(--muted); font-size: 12.5px; }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 28px; }
+.kpi { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; min-width: 0; }
+.kpi .num { font-size: 26px; font-weight: 600; line-height: 1.1; }
+.kpi .lbl { font-size: 12.5px; color: var(--ink-2); }
+.kpi .src { font-size: 11px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+
+/* segmented control */
+.seg { display: inline-flex; background: var(--sunken); border-radius: 9px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { font: inherit; font-size: 13px; font-weight: 600; border: 0; background: transparent; color: var(--ink-2); padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+/* architecture */
+.archbar { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.archbar .hint { color: var(--muted); font-size: 13px; }
+.arch { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+.mapbox { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+.mapbox svg { display: block; min-width: 720px; width: 100%; height: auto; }
+.node rect.box { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; transition: fill .15s, stroke .15s; }
+.node { cursor: pointer; }
+.node:hover rect.box, .node:focus-visible rect.box { stroke: var(--brand-2); }
+.node.sel rect.box { fill: var(--brand-soft); stroke: var(--brand); stroke-width: 1.6; }
+.node text.t { font: 600 13px var(--ui); fill: var(--ink); }
+.node text.a { font: 400 11px var(--ui); fill: var(--brand-2); }
+.node text.k { font: 600 9.5px var(--ui); letter-spacing: .08em; fill: var(--muted); text-transform: uppercase; }
+.node.fixed rect.box { stroke-dasharray: 0; }
+.node .swap { fill: var(--accent); }
+.zone { fill: none; stroke: var(--line); stroke-dasharray: 3 4; }
+.zlabel { font: 600 10px var(--ui); letter-spacing: .1em; fill: var(--muted); text-transform: uppercase; }
+.edge { fill: none; stroke: var(--line-strong); stroke-width: 1.4; }
+.edge.flow { stroke: var(--brand-2); stroke-dasharray: 4 7; animation: dash 1.2s linear infinite; opacity: .75; }
+@keyframes dash { to { stroke-dashoffset: -22; } }
+@media (prefers-reduced-motion: reduce) { .edge.flow { animation: none; } }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-right: 6px; vertical-align: middle; }
+.legend i.f { background: var(--ink-2); border-radius: 2px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px; position: sticky; top: calc(64px + env(safe-area-inset-top, 0px)); min-width: 0; }
+.panel h3 { font-size: 20px; }
+.panel .role { color: var(--ink-2); font-size: 14px; }
+.panel .active { background: var(--brand-soft); color: var(--ink); border-radius: 9px; padding: 9px 11px; font-size: 13.5px; }
+.panel .active small { display: block; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--brand-2); }
+.opts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.opts li { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; }
+.pill { flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 99px; padding: 1px 7px; }
+.p-ok { background: var(--ok-soft); color: var(--ok); }
+.p-wired { background: var(--warn-soft); color: var(--warn); }
+.p-plan { background: var(--sunken); color: var(--muted); }
+.p-fixed { background: var(--sunken); color: var(--ink-2); }
+.panel .facts { display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.panel .facts b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.panel .where { font-family: var(--mono); font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* turn path */
+.steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; counter-reset: s; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.step .n { font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: 600; }
+.step h3 { font-size: 16px; }
+.step p { font-size: 13.5px; color: var(--ink-2); }
+.step .t { font-size: 12px; color: var(--brand-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* tables */
+.tbl { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td .pill { margin: 1px 4px 1px 0; display: inline-block; }
+td.mod { font-weight: 600; white-space: nowrap; }
+
+/* simulator */
+.sim { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 18px; align-items: start; }
+.controls { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.ctl { display: grid; gap: 4px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; }
+.ctl label output { font-family: var(--display); font-variant-numeric: tabular-nums; color: var(--brand); font-weight: 600; font-size: 15px; }
+.ctl .note { font-size: 11.5px; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--brand-2); }
+select { font: inherit; font-size: 13.5px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); width: 100%; }
+.presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { font: inherit; font-size: 12.5px; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink); padding: 5px 10px; border-radius: 8px; cursor: pointer; }
+.btn:hover { border-color: var(--brand-2); }
+.btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.out { display: grid; gap: 14px; min-width: 0; }
+.flowbox { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.flowbox canvas { display: block; width: 100%; height: 230px; }
+.flowcap { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
+.verdict { font-weight: 600; }
+.verdict.ok { color: var(--ok); } .verdict.warn { color: var(--warn); } .verdict.bad { color: var(--bad); }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.card .k { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.card .v { font-size: 26px; font-weight: 600; line-height: 1.1; }
+.card .s { font-size: 12.5px; color: var(--ink-2); }
+.meter { height: 7px; background: var(--sunken); border-radius: 99px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ok); border-radius: 99px; transition: width .25s, background .25s; }
+.sysbars { display: grid; gap: 7px; }
+.sysrow { display: grid; grid-template-columns: 92px minmax(0, 1fr) 118px; gap: 10px; align-items: center; font-size: 12.5px; }
+.sysrow .bar { height: 12px; background: var(--sunken); border-radius: 4px; overflow: hidden; }
+.sysrow .bar i { display: block; height: 100%; background: var(--brand-2); border-radius: 4px; transition: width .25s; }
+.sysrow .r { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.day { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.dayhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.day svg { width: 100%; height: auto; display: block; }
+.day .bar-h { fill: var(--brand-2); opacity: .55; cursor: pointer; }
+.day .bar-h:hover, .day .bar-h.on { opacity: 1; }
+.day .cap { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.day text { font: 10.5px var(--ui); fill: var(--muted); }
+.day text.capl { fill: var(--accent); font-weight: 600; }
+.assume { font-size: 12px; color: var(--muted); }
+
+/* evidence charts */
+.ev { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .src { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.chart text { font: 11.5px var(--ui); fill: var(--ink-2); }
+.chart text.v { font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.chart .grid line { stroke: var(--line); }
+.prod { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.prod div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 4px; }
+.prod b { font-size: 14.5px; }
+.prod span { font-size: 13.5px; color: var(--ink-2); }
+footer { padding-block: 28px 40px; color: var(--muted); font-size: 12.5px; }
+
+@media (max-width: 960px) {
+  .arch, .sim { grid-template-columns: minmax(0, 1fr); }
+  .panel { position: static; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .hero .grid, .ev, .prod { grid-template-columns: minmax(0, 1fr); }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: minmax(0, 1fr); }
+  .sysrow { grid-template-columns: 74px minmax(0, 1fr) 96px; }
+}
+</style>
+
+</head>
+<body>
+<nav class="nav" aria-label="Sections">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--brand)"/><path d="M12 4 L13.6 10.4 L20 12 L13.6 13.6 L12 20 L10.4 13.6 L4 12 L10.4 10.4 Z" fill="var(--brand-ink)"/></svg>
+      Northstar
+    </a>
+    <a class="link" href="#architecture">Architecture</a>
+    <a class="link" href="#turn">A turn</a>
+    <a class="link" href="#modules">Swappable modules</a>
+    <a class="link" href="#scale">Scale simulator</a>
+    <a class="link" href="#evidence">Evidence</a>
+    <a class="link" href="#production">Production</a>
+  </div>
+</nav>
+
+<main id="top">
+<section class="hero"><div class="wrap">
+  <div class="grid">
+    <div style="display:grid;gap:14px;min-width:0">
+      <div class="eyebrow">Loan servicing assistant · architecture</div>
+      <h1>Answers from each customer's own records, sized for a contact centre.</h1>
+      <p class="lede">Customers ask by text or voice about their loans and cards. Every figure comes from their records through
+        a calculator, every policy decision cites its clause, and service requests are filed with confirmation and a
+        one-time code. One platform core runs two workflows, and every piece of infrastructure behind it is an adapter.</p>
+    </div>
+    <div class="targets" aria-label="Scale targets">
+      <div class="target"><span class="num">2M</span><b>customers</b><span>personal loans, credit cards</span></div>
+      <div class="target"><span class="num">100k</span><b>support interactions a day</b><span>website, app and contact centre</span></div>
+      <div class="target"><span class="num">1,000</span><b>concurrent conversations</b><span>the architecture's growth target</span></div>
+    </div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><span class="num">46/46</span><span class="lbl">golden questions, Claude Haiku 5.5 and the deterministic planner</span><span class="src">docs/evals/</span></div>
+    <div class="kpi"><span class="num">9,455</span><span class="lbl">turns from 1,000 concurrent sessions, 0 failed (model stubbed)</span><span class="src">docs/perf/load-1000-users</span></div>
+    <div class="kpi"><span class="num">2.0 s</span><span class="lbl">first answer token p50 with Claude Haiku 5.5</span><span class="src">docs/evals/claude-haiku-5-5.md</span></div>
+    <div class="kpi"><span class="num">130–280 ms</span><span class="lbl">speech recognition per question, on-device or on our GPU</span><span class="src">speech/ · deploy/selfhosted/</span></div>
+    <div class="kpi"><span class="num">0</span><span class="lbl">unverified figures spoken: every number is checked against tool output</span><span class="src">orchestrator/grounding.py</span></div>
+  </div>
+</div></section>
+
+<section id="architecture"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Architecture</div>
+    <h2>One turn engine for text and voice, on a platform core with swappable adapters</h2>
+    <p class="lede">Pick a deployment to see which adapter each module runs. Select any box for what it does, its options and what was measured.</p>
+  </div>
+  <div class="archbar">
+    <div class="seg" role="group" aria-label="Deployment">
+      <button type="button" data-profile="laptop" aria-pressed="true">Laptop demo</button>
+      <button type="button" data-profile="gpu" aria-pressed="false">Self-hosted GPU</button>
+      <button type="button" data-profile="cloud" aria-pressed="false">Cloud production</button>
+    </div>
+    <span class="hint" id="profileHint"></span>
+  </div>
+  <div class="arch">
+    <div class="mapbox">
+      <svg id="map" viewBox="0 0 760 520" role="img" aria-label="Architecture map"></svg>
+      <div class="legend"><span><i></i>swappable by configuration</span><span><i class="f"></i>fixed in code: the product's guarantees</span><span>Dashed lines: live data flow</span></div>
+    </div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div></section>
+
+<section id="turn"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">A turn, start to finish</div>
+    <h2>“If I prepay ₹50,000 today, how much interest would I save?”</h2>
+  </div>
+  <div class="steps">
+    <div class="step"><span class="n">1 · open</span><h3>Stream opens</h3><p>The customer id comes from the signed token, never from the model, so no prompt can point a tool at someone else's records.</p><span class="t">status line in &lt; 5 ms</span></div>
+    <div class="step"><span class="n">2 · plan</span><h3>Planner picks tools</h3><p>Claude streams with tool schemas generated from the active packs. Without a model, regex intents from the same packs pick the same tools.</p><span class="t">first token p50 2.0 s (Haiku 5.5)</span></div>
+    <div class="step"><span class="n">3 · fetch</span><h3>Systems in parallel</h3><p>One composite tool reads the loan and schedule, asks the policy engine about charges, and runs the prepayment calculator in Decimal.</p><span class="t">~6 system calls, most from cache</span></div>
+    <div class="step"><span class="n">4 · check</span><h3>Every number verified</h3><p>Each figure in the reply must appear in this turn's tool output. In voice, a sentence is spoken only after it passes.</p><span class="t">₹22,883 saved · 4 fewer EMIs</span></div>
+    <div class="step"><span class="n">5 · act</span><h3>Request on approval</h3><p>The model only proposes. The executor freezes the parameters, asks for a one-time code, files once and writes an append-only audit row.</p><span class="t">idempotent, audited</span></div>
+  </div>
+</div></section>
+
+<section id="modules"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Swappable modules</div>
+    <h2>Every module can move to a cloud service or our own hardware</h2>
+    <p class="lede">Each one sits behind a small interface and is chosen by configuration. The calculators, policy engine,
+      grounding check and action executor stay fixed in code with tests, because they are what the product guarantees.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Module</th><th>Chosen by</th><th>Options</th><th>Interface</th></tr></thead>
+    <tbody id="modRows"></tbody>
+  </table></div>
+  <p class="assume" style="margin-top:10px"><span class="pill p-ok">ran</span> exercised with tests or a live run · <span class="pill p-wired">wired</span> implemented, not run here (no account) · <span class="pill p-plan">next</span> the obvious next adapter</p>
+</div></section>
+
+<section id="scale"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Scale simulator</div>
+    <h2>What 1,000 concurrent conversations ask of each part</h2>
+    <p class="lede">Move the load and watch where pressure builds. Rates come from measured ratios in the benchmarks; capacity
+      per orchestrator process is the measured 40 turns a second. Pick an hour on the day chart, or play the day.</p>
+  </div>
+  <div class="sim">
+    <form class="controls" id="controls" onsubmit="return false">
+      <div class="presets" role="group" aria-label="Presets">
+        <button type="button" class="btn" data-preset="peak">Typical peak</button>
+        <button type="button" class="btn" data-preset="target">1,000 target</button>
+        <button type="button" class="btn" data-preset="campaign">Collections campaign</button>
+      </div>
+      <div class="ctl"><label for="c">Concurrent conversations <output id="cOut"></output></label>
+        <input type="range" id="c" min="10" max="5000" step="10" value="1000"><span class="note">Estimated typical peak from 100k a day: ~500</span></div>
+      <div class="ctl"><label for="gap">Seconds between turns <output id="gapOut"></output></label>
+        <input type="range" id="gap" min="6" max="60" step="1" value="20"><span class="note">listen, think, speak, read the card</span></div>
+      <div class="ctl"><label for="voice">Voice share <output id="voiceOut"></output></label>
+        <input type="range" id="voice" min="0" max="100" step="5" value="60"></div>
+      <div class="ctl"><label for="hit">Cache hit rate <output id="hitOut"></output></label>
+        <input type="range" id="hit" min="0" max="95" step="5" value="70"><span class="note">measured 26% cold, 83% warm</span></div>
+      <div class="ctl"><label for="model">Planner</label>
+        <select id="model">
+          <option value="haiku">Claude Haiku 5.5 (default)</option>
+          <option value="sonnet">Claude Sonnet 5.5</option>
+          <option value="opus">Claude Opus 5.5</option>
+          <option value="qwen">Qwen3 14B on our RTX 3090s</option>
+          <option value="none">Deterministic planner only</option>
+        </select></div>
+      <div class="ctl"><label for="procs">Orchestrator processes <output id="procsOut"></output></label>
+        <input type="range" id="procs" min="1" max="24" step="1" value="4"><span class="note">capacity 40 turns/s each, run at ≤ 60%</span></div>
+    </form>
+    <div class="out">
+      <div class="flowbox">
+        <canvas id="flow" aria-label="Animated request flow"></canvas>
+        <div class="flowcap"><span id="flowRate"></span><span class="verdict" id="verdict"></span></div>
+      </div>
+      <div class="cards" id="cards"></div>
+      <div class="card">
+        <span class="k">Live calls to each enterprise system</span>
+        <div class="sysbars" id="sys"></div>
+        <span class="s" id="sysNote"></span>
+      </div>
+      <div class="day">
+        <div class="dayhead"><b style="font-size:14px">A day of 100,000 interactions: concurrent conversations by hour</b>
+          <span style="display:flex;gap:8px;align-items:center"><button type="button" class="btn primary" id="play">Play the day</button></span></div>
+        <svg id="dayChart" viewBox="0 0 720 170" role="img" aria-label="Concurrent conversations by hour"></svg>
+        <span class="assume">Hourly shape is an assumption typical of Indian lenders' contact centres (peaks late morning and early evening), with 3-minute conversations. Daily total and conversation length set the height.</span>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="evidence"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Evidence</div>
+    <h2>Measured, with the report each number comes from</h2>
+  </div>
+  <div class="ev">
+    <div class="chart"><h3>Questions answered correctly, by planner</h3><svg id="evalChart" viewBox="0 0 460 200"></svg>
+      <span class="src">golden: 46 questions written with the intents · held-out: 17 reworded questions (Hinglish, negations, two-part, typos) never used to tune them · docs/evals/</span></div>
+    <div class="chart"><h3>Turn time p50 by planner</h3><svg id="latChart" viewBox="0 0 460 200"></svg>
+      <span class="src">same eval runs; the deterministic planner is the fallback path</span></div>
+    <div class="chart"><h3>Speech recognition per question</h3><svg id="sttChart" viewBox="0 0 460 200"></svg>
+      <span class="src">2–4 s recorded questions · speech/tests · deploy/selfhosted/README.md</span></div>
+    <div class="chart"><h3>1,000 concurrent sessions: 9,455 turns, 0 failed</h3><svg id="loadChart" viewBox="0 0 460 200"></svg>
+      <span class="src">locust, one orchestrator process on a laptop, model stubbed at 400 + 600 ms · docs/perf/load-1000-users_stats.csv</span></div>
+  </div>
+</div></section>
+
+<section id="production"><div class="wrap">
+  <div class="head">
+    <div class="eyebrow">Production path</div>
+    <h2>What changes between this and 1,000 live conversations</h2>
+  </div>
+  <div class="prod">
+    <div><b>State out of the process</b><span>Sessions in Redis and audit in Postgres: both already selectable by URL. Then orchestrator replicas behind a load balancer.</span></div>
+    <div><b>Voice on telephony</b><span>SIP or WebRTC workers call the same turn API with channel voice; speech on a batched GPU pool or a managed service.</span></div>
+    <div><b>Model capacity and routing</b><span>Rate limits sized for ~5,000 requests a minute, failover to a second model, small models for fillers, caching tuned from recorded spans.</span></div>
+    <div><b>Systems of record</b><span>Real CRM, loan and payment APIs behind the same gateway, with per-system concurrency agreed with their owners; writes through a queue.</span></div>
+    <div><b>Security</b><span>Real OTP over SMS, RS256 tokens with refresh, secrets in a vault. The API already refuses to start outside demo mode with development secrets.</span></div>
+    <div><b>Observability</b><span>Spans already carry OpenTelemetry names; export them to a collector and alert on first-token latency and grounding replacements.</span></div>
+  </div>
+</div></section>
+</main>
+<footer><div class="wrap">Source: <a href="https://github.com/Vishalan/northstar-loan-assistant">github.com/Vishalan/northstar-loan-assistant</a> · All data is synthetic. Northstar Finance is fictional.</div></footer>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (n, d = 0) => n.toLocaleString("en-IN", { maximumFractionDigits: d, minimumFractionDigits: d });
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+/* ---------------- architecture ---------------- */
+const PROFILES = {
+  laptop: "Everything on one laptop. Claude by API key, or the deterministic planner with no key at all.",
+  gpu: "Models on our own RTX 3090 over Tailscale. Nothing leaves our hardware except the browser session.",
+  cloud: "Managed services behind the same adapters, several orchestrator replicas.",
+};
+const NODES = [
+  { id: "web", x: 20, y: 46, w: 170, h: 62, kind: "Client", t: "Web app", swap: false,
+    a: { laptop: "Next.js · chat + voice", gpu: "Next.js · chat + voice", cloud: "Next.js on a CDN" },
+    role: "Chat, account panel and evidence cards. In voice it streams the microphone, handles barge-in and the echo guard, and speaks sentences as they pass the grounding check.",
+    opts: [["ok", "Text over HTTPS with server-sent events"], ["ok", "Voice: barge-in, fillers, echo guard"]],
+    facts: [["Text: send → first words rendered", "recorded on /latency"]], where: "web/" },
+  { id: "speech", x: 20, y: 150, w: 170, h: 62, kind: "Speech", t: "Speech service", swap: true,
+    a: { laptop: "Parakeet on the Mac · browser voice", gpu: "faster-whisper + Kokoro, RTX 3090", cloud: "managed STT/TTS or GPU pool" },
+    role: "Turns microphone audio into text with an endpointer and live partials, and optionally speaks the assistant's sentences. One WebSocket protocol whatever engine runs.",
+    opts: [["ok", "Parakeet TDT 0.6B on Apple Silicon (MLX)"], ["ok", "faster-whisper large-v3-turbo on CUDA"], ["ok", "Kokoro voice via OpenAI-compatible speech API"], ["wired", "OpenAI-compatible transcription: OpenAI, Groq"], ["ok", "Browser recogniser and voice as fallback"]],
+    facts: [["Mac, per question", "130–250 ms"], ["RTX 3090 over Tailscale", "~280 ms"], ["Voice per sentence", "300–380 ms"]], where: "speech/src/speech/engines.py · web/lib/speech-output.ts" },
+  { id: "orch", x: 250, y: 46, w: 190, h: 62, kind: "Orchestrator", t: "API and turn runner", swap: false,
+    a: { laptop: "1 FastAPI process", gpu: "1 FastAPI process", cloud: "3–4 replicas behind a load balancer" },
+    role: "OTP login to a signed token, per-customer rate limits, one turn engine for text and voice, cancel and interrupt, latency spans for every stage.",
+    opts: [["ok", "Stateless when sessions live in Redis"], ["ok", "Measured ~40 turns/s per process"]],
+    facts: [["1,000 sessions, 4 min", "9,455 turns, 0 failed"], ["First token p50 (model stubbed)", "410 ms"]], where: "backend/src/orchestrator/" },
+  { id: "planner", x: 250, y: 150, w: 190, h: 62, kind: "Planner", t: "Agent loop | intents", swap: true,
+    a: { laptop: "Claude loop, intent fallback", gpu: "Qwen3 loop, intent fallback", cloud: "Claude loop, intent fallback" },
+    role: "Chooses tools and writes the answer. If the model is slow, down, or promises an action without calling a tool, the deterministic planner answers from the same packs.",
+    opts: [["ok", "LLM agent loop, up to 4 tool rounds"], ["ok", "Deterministic intent planner (LLM_MODE)"]],
+    facts: [["Golden set, deterministic", "46/46"], ["Golden set, Haiku 5.5", "46/46"]], where: "backend/src/orchestrator/turn.py" },
+  { id: "llm", x: 250, y: 254, w: 190, h: 62, kind: "LLM provider", t: "Model endpoint", swap: true,
+    a: { laptop: "Claude Haiku 5.5 → Opus 5.5", gpu: "Qwen3 14B via Ollama", cloud: "Claude: API, Bedrock or Vertex" },
+    role: "Providers are data in providers.yaml: add one without code. The active model can be swapped at runtime, a failover model takes over on capacity errors, and the served model is logged.",
+    opts: [["ok", "Anthropic API"], ["ok", "Anthropic-compatible proxy"], ["ok", "Self-hosted Qwen3 via Ollama (RTX 3090)"], ["wired", "Claude on AWS Bedrock"], ["wired", "Claude on Google Vertex AI"]],
+    facts: [["Haiku 5.5: first token p50 / p95", "2.0 / 3.1 s"], ["Qwen3 14B: turn p50", "7.7 s, 40/46"]], where: "backend/src/orchestrator/providers.yaml" },
+  { id: "ground", x: 250, y: 358, w: 190, h: 62, kind: "Guarantee", t: "Grounding check", swap: false,
+    a: { laptop: "every reply", gpu: "every reply", cloud: "every reply" },
+    role: "Extracts every number from the reply and matches it against tool output, earlier facts and the customer's words. Text is corrected in place; voice is held sentence by sentence.",
+    opts: [["fixed", "In code, with tests"]], facts: [["Unverified figures spoken", "0"]], where: "backend/src/orchestrator/grounding.py" },
+  { id: "core", x: 500, y: 46, w: 240, h: 114, kind: "Platform core", t: "Reusable core", swap: false,
+    a: { laptop: "gateway · calculators · policy · actions", gpu: "gateway · calculators · policy · actions", cloud: "gateway · calculators · policy · actions" },
+    role: "Connector gateway with timeouts, retries, circuit breakers, bulkheads, cache and stale-on-error; Decimal calculators with steps; YAML policy rules with clause citations; the action executor with tiers, OTP, idempotency and audit.",
+    opts: [["fixed", "Calculators, policy engine, executor: in code"], ["ok", "Gateway limits per system: config"]],
+    facts: [["Bad day (Payments down)", "every turn completes"]], where: "backend/src/nsplatform/" },
+  { id: "packs", x: 500, y: 190, w: 240, h: 62, kind: "Workflows", t: "Packs: core · loans · cards", swap: true,
+    a: { laptop: "3 packs", gpu: "3 packs", cloud: "3 packs + new folders" },
+    role: "A workflow is a folder: manifest, handlers, rules, prompt, golden questions. Credit cards was added as a pack with no change to the core.",
+    opts: [["ok", "core, loans, cards"], ["plan", "collections, onboarding: new folders"]],
+    facts: [["Cards pack", "226 + 102 lines"]], where: "backend/packs/" },
+  { id: "sys", x: 500, y: 282, w: 240, h: 62, kind: "Systems of record", t: "Six enterprise systems", swap: true,
+    a: { laptop: "mocks with chaos presets", gpu: "mocks with chaos presets", cloud: "real CRM, LMS, Payments …" },
+    role: "CRM, Loan Management, Payments, Policy, Service Ops and Cards. Each has its own URL, so any one can be pointed at a real system behind the same gateway.",
+    opts: [["ok", "Mocks: calm, realistic, bad day"], ["plan", "Real APIs per system URL"]],
+    facts: [["Calls per turn", "~6.1"], ["Cache hits cold / warm", "26% / 83%"]], where: "backend/src/mocks/ · <SYSTEM>_URL" },
+  { id: "store", x: 500, y: 374, w: 115, h: 62, kind: "State", t: "Sessions", swap: true,
+    a: { laptop: "in-process", gpu: "in-process", cloud: "Redis" },
+    role: "Sessions, the connector cache, idempotency keys and rate limits, with TTLs.",
+    opts: [["ok", "In-process"], ["ok", "Redis (REDIS_URL)"], ["wired", "ElastiCache, Memorystore"]], facts: [], where: "backend/src/nsplatform/store.py" },
+  { id: "db", x: 625, y: 374, w: 115, h: 62, kind: "State", t: "Audit + spans", swap: true,
+    a: { laptop: "SQLite", gpu: "SQLite", cloud: "Postgres" },
+    role: "Append-only audit log, turns, latency spans and client metrics. The audit table rejects updates and deletes on both backends.",
+    opts: [["ok", "SQLite"], ["ok", "Postgres 16 (APP_DB_URL)"], ["wired", "RDS, Cloud SQL"]], facts: [], where: "backend/src/nsplatform/db.py" },
+];
+const EDGES = [["web", "orch", true], ["web", "speech", true], ["orch", "planner", true], ["planner", "llm", true], ["planner", "ground", false], ["orch", "core", true], ["core", "packs", false], ["core", "sys", true], ["core", "store", false], ["core", "db", false]];
+const byId = Object.fromEntries(NODES.map((n) => [n.id, n]));
+let profile = "laptop", selected = "llm";
+const map = $("#map");
+
+function anchor(n, side) {
+  if (side === "r") return [n.x + n.w, n.y + n.h / 2];
+  if (side === "l") return [n.x, n.y + n.h / 2];
+  if (side === "b") return [n.x + n.w / 2, n.y + n.h];
+  return [n.x + n.w / 2, n.y];
+}
+function drawMap() {
+  map.textContent = "";
+  el("rect", { class: "zone", x: 8, y: 14, width: 194, height: 220, rx: 12 }, map);
+  el("text", { class: "zlabel", x: 20, y: 34 }, map).textContent = "Customer side";
+  el("rect", { class: "zone", x: 238, y: 14, width: 214, height: 420, rx: 12 }, map);
+  el("text", { class: "zlabel", x: 250, y: 34 }, map).textContent = "Orchestration";
+  el("rect", { class: "zone", x: 488, y: 14, width: 264, height: 434, rx: 12 }, map);
+  el("text", { class: "zlabel", x: 500, y: 34 }, map).textContent = "Platform and data";
+  for (const [a, b, live] of EDGES) {
+    const A = byId[a], B = byId[b];
+    let p;
+    if (A.x + A.w < B.x) { const [x1, y1] = anchor(A, "r"), [x2, y2] = anchor(B, "l"); const mx = (x1 + x2) / 2; p = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`; }
+    else { const [x1, y1] = anchor(A, "b"), [x2, y2] = anchor(B, "t"); p = `M${x1},${y1} L${x2},${y2}`; }
+    el("path", { class: "edge", d: p }, map);
+    if (live) el("path", { class: "edge flow", d: p }, map);
+  }
+  for (const n of NODES) {
+    const g = el("g", { class: "node" + (n.id === selected ? " sel" : ""), tabindex: 0, role: "button", "aria-label": n.t, transform: `translate(${n.x},${n.y})` }, map);
+    el("rect", { class: "box", width: n.w, height: n.h, rx: 10 }, g);
+    el("text", { class: "k", x: 12, y: 18 }, g).textContent = n.kind;
+    el("text", { class: "t", x: 12, y: 36 }, g).textContent = n.t;
+    const a = el("text", { class: "a", x: 12, y: 53 }, g);
+    a.textContent = n.a[profile];
+    if (n.swap) el("circle", { class: "swap", cx: n.w - 12, cy: 13, r: 4.5 }, g);
+    else el("rect", { x: n.w - 16, y: 9, width: 8, height: 8, rx: 2, fill: "var(--ink-2)" }, g);
+    const pick = () => { selected = n.id; drawMap(); drawPanel(); };
+    g.addEventListener("click", pick);
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+  }
+}
+const PILL = { ok: ["p-ok", "ran"], wired: ["p-wired", "wired"], plan: ["p-plan", "next"], fixed: ["p-fixed", "fixed"] };
+function drawPanel() {
+  const n = byId[selected];
+  $("#panel").innerHTML = `<div class="eyebrow">${n.kind}</div><h3>${n.t}</h3><p class="role">${n.role}</p>
+    <div class="active"><small>Runs in this deployment</small>${n.a[profile]}</div>
+    <ul class="opts">${n.opts.map(([s, t]) => `<li><span class="pill ${PILL[s][0]}">${PILL[s][1]}</span><span>${t}</span></li>`).join("")}</ul>
+    ${n.facts.length ? `<div class="facts">${n.facts.map(([k, v]) => `<span>${k}: <b>${v}</b></span>`).join("")}</div>` : ""}
+    <div class="where">${n.where}</div>`;
+}
+$$(".seg [data-profile]").forEach((b) => b.addEventListener("click", () => {
+  profile = b.dataset.profile;
+  $$(".seg [data-profile]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  $("#profileHint").textContent = PROFILES[profile];
+  drawMap(); drawPanel();
+}));
+$("#profileHint").textContent = PROFILES[profile];
+drawMap(); drawPanel();
+
+/* ---------------- modules table ---------------- */
+const MODS = [
+  ["Planner LLM", "LLM_PROVIDER + providers.yaml", [["ok", "Claude API"], ["ok", "proxy"], ["ok", "Qwen3 on RTX 3090"], ["wired", "Bedrock"], ["wired", "Vertex"]], "Messages API, streaming + tools"],
+  ["Planner fallback", "LLM_MODE", [["ok", "deterministic intents"]], "same tools and actions"],
+  ["Speech recognition", "ASR_ENGINE · NEXT_PUBLIC_STT_URL", [["ok", "Parakeet-MLX"], ["ok", "faster-whisper CUDA"], ["ok", "browser"], ["wired", "OpenAI-compatible API"]], "transcribe(audio) → text"],
+  ["Assistant voice", "TTS_ENGINE · NEXT_PUBLIC_TTS_URL", [["ok", "browser"], ["ok", "Kokoro on RTX 3090"], ["wired", "OpenAI TTS"]], "Speaker, per-sentence fallback"],
+  ["Sessions and cache", "REDIS_URL", [["ok", "in-process"], ["ok", "Redis"], ["wired", "ElastiCache, Memorystore"]], "get, set, incr with TTL"],
+  ["Audit, turns, spans", "APP_DB · APP_DB_URL", [["ok", "SQLite"], ["ok", "Postgres 16"], ["wired", "RDS, Cloud SQL"]], "execute, query, audit"],
+  ["Enterprise systems", "<SYSTEM>_URL · pack manifests", [["ok", "6 mocks with chaos"], ["plan", "real APIs"]], "HTTP + service token"],
+  ["Workflows", "PACKS_DIR", [["ok", "core, loans, cards"], ["plan", "new folders"]], "manifest, handlers, rules, evals"],
+  ["Policy search", "POLICY_URL", [["ok", "BM25 over clauses"], ["plan", "hybrid search"]], "POST /policy/search"],
+];
+$("#modRows").innerHTML = MODS.map(([m, by, opts, i]) => `<tr><td class="mod">${m}</td><td class="mono">${by.replace(/</g, "&lt;")}</td><td>${opts.map(([s, t]) => `<span class="pill ${PILL[s][0]}">${t}</span>`).join("")}</td><td>${i}</td></tr>`).join("");
+
+/* ---------------- simulator ---------------- */
+// Measured: connector calls per turn by system and live p50 latency (journey benchmark, realistic backends).
+const SYSTEMS = [["Loans", 2.74, 0.167], ["Cards", 1.33, 0.166], ["Payments", 0.86, 0.529], ["Policy", 0.66, 0.124], ["CRM", 0.44, 0.072], ["Service Ops", 0.09, 0.572]];
+const BULKHEAD = 50; // in-flight calls per system per process
+const PROC_TPS = 40; // measured turns/s per orchestrator process
+const MODELS = { // $ per million tokens (input, output, cache read); planning call latency; calls per turn
+  haiku: { name: "Haiku 5.5", p: [0.10, 0.50, 0.01], callS: 1.25, gpu: false },
+  sonnet: { name: "Sonnet 5.5", p: [2.00, 10.00, 0.20], callS: 1.8, gpu: false },
+  opus: { name: "Opus 5.5", p: [4.00, 20.00, 0.20], callS: 2.6, gpu: false },
+  qwen: { name: "Qwen3 14B", p: [0, 0, 0], callS: 0.8, gpu: true },
+  none: { name: "deterministic", p: [0, 0, 0], callS: 0, gpu: false },
+};
+const CALLS_PER_TURN = 1.6, IN_TOK = 4000, CACHED_TOK = 3000, OUT_TOK = 150;
+const STT_S = 0.28, TTS_S = 0.34, SENTENCES = 2.5, UTIL = 0.6;
+const ids = ["c", "gap", "voice", "hit", "procs"];
+const S = {};
+function read() { for (const i of ids) S[i] = +$("#" + i).value; S.model = $("#model").value; }
+function compute() {
+  read();
+  const tps = S.c / S.gap;
+  const m = MODELS[S.model];
+  const llmRps = S.model === "none" ? 0 : tps * CALLS_PER_TURN;
+  const inFlightLlm = llmRps * m.callS;
+  const costPerTurn = S.model === "none" ? 0 : CALLS_PER_TURN * ((IN_TOK - CACHED_TOK) * m.p[0] + CACHED_TOK * m.p[2] + OUT_TOK * m.p[1]) / 1e6;
+  const orchUtil = tps / (S.procs * PROC_TPS);
+  const procsNeeded = Math.max(2, Math.ceil(tps / (PROC_TPS * UTIL)));
+  const utt = tps * S.voice / 100;
+  const sttGpu = utt * STT_S, ttsGpu = utt * SENTENCES * TTS_S;
+  const qwenGpus = m.gpu ? Math.ceil(inFlightLlm / 4) : 0; // ~4 concurrent generations per 3090 at usable speed
+  const sys = SYSTEMS.map(([n, per, lat]) => { const r = tps * per * (1 - S.hit / 100); return { n, r, inflight: r * lat, perProc: (r * lat) / S.procs }; });
+  const live = sys.reduce((a, s) => a + s.r, 0);
+  const worstBulk = Math.max(...sys.map((s) => s.perProc)) / BULKHEAD;
+  return { tps, llmRps, inFlightLlm, costPerTurn, orchUtil, procsNeeded, utt, sttGpu, ttsGpu, qwenGpus, sys, live, worstBulk, m };
+}
+const level = (u) => (u < 0.6 ? "ok" : u < 0.85 ? "warn" : "bad");
+const colorOf = (lv) => css({ ok: "--ok", warn: "--warn", bad: "--bad" }[lv]);
+let R;
+function render() {
+  R = compute();
+  $("#cOut").textContent = fmt(S.c);
+  $("#gapOut").textContent = S.gap + " s";
+  $("#voiceOut").textContent = S.voice + "%";
+  $("#hitOut").textContent = S.hit + "%";
+  $("#procsOut").textContent = S.procs;
+  const day = R.costPerTurn * 500000;
+  const cards = [
+    { k: "Turns per second", v: fmt(R.tps, 1), s: `${fmt(R.tps * 3600)} an hour at this load`, u: null },
+    { k: "Orchestrator load", v: fmt(R.orchUtil * 100) + "%", s: `${S.procs} process${S.procs > 1 ? "es" : ""} · ${R.procsNeeded} recommended`, u: R.orchUtil },
+    { k: "LLM requests", v: R.llmRps ? fmt(R.llmRps * 60) + "/min" : "none", s: R.llmRps ? `${fmt(R.inFlightLlm)} in flight · ${fmt(R.llmRps * 60 * IN_TOK / 1e6, 1)}M input tokens/min` : "deterministic planner only", u: null },
+    { k: R.m.gpu ? "GPUs for the planner" : "Model cost", v: R.m.gpu ? fmt(R.qwenGpus) + " × 3090" : R.costPerTurn ? "₹" + fmt(R.costPerTurn * 86 * 1000, 1) : "₹0", s: R.m.gpu ? "~4 concurrent generations each" : R.costPerTurn ? `per 1,000 turns · ~$${fmt(day)} a day at 500k turns` : "no model calls", u: null },
+    { k: "Speech decode load", v: fmt(R.sttGpu, 1) + " GPU-s/s", s: `${fmt(R.utt, 1)} utterances/s · unbatched RTX 3090 timing`, u: null },
+    { k: "Voice synthesis load", v: fmt(R.ttsGpu, 1) + " GPU-s/s", s: `${fmt(R.utt * SENTENCES, 1)} sentences/s · batching cuts this sharply`, u: null },
+  ];
+  $("#cards").innerHTML = cards.map((c) => `<div class="card"><span class="k">${c.k}</span><span class="v num">${c.v}</span><span class="s">${c.s}</span>${c.u != null ? `<div class="meter"><i style="width:${Math.min(100, c.u * 100)}%;background:${colorOf(level(c.u))}"></i></div>` : ""}</div>`).join("");
+  const maxR = Math.max(...R.sys.map((s) => s.r), 1);
+  $("#sys").innerHTML = R.sys.map((s) => `<div class="sysrow"><span>${s.n}</span><span class="bar"><i style="width:${(s.r / maxR) * 100}%"></i></span><span class="r">${fmt(s.r, 1)}/s · ${fmt(s.inflight, 1)} open</span></div>`).join("");
+  $("#sysNote").textContent = `${fmt(R.live)} live calls a second in total. Open calls per system per process peak at ${fmt(R.worstBulk * BULKHEAD, 1)} against a bulkhead of ${BULKHEAD}.`;
+  const worst = Math.max(R.orchUtil, R.worstBulk);
+  const lv = level(worst);
+  const v = $("#verdict");
+  v.className = "verdict " + lv;
+  v.textContent = lv === "ok" ? "Within capacity" : lv === "warn" ? (R.orchUtil >= R.worstBulk ? "Orchestrator running hot: add a process" : "A system's bulkhead is filling") : (R.orchUtil >= R.worstBulk ? `Over capacity: needs ${R.procsNeeded} processes` : "Bulkhead saturated: calls will queue");
+  $("#flowRate").textContent = `${fmt(S.c)} conversations · ${fmt(R.tps, 1)} turns/s · ${fmt(R.live)} system calls/s`;
+  drawDay();
+}
+ids.forEach((i) => $("#" + i).addEventListener("input", () => { stopPlay(); render(); }));
+$("#model").addEventListener("change", render);
+const PRESETS = { peak: { c: 500, gap: 20, voice: 60, hit: 70, procs: 2 }, target: { c: 1000, gap: 20, voice: 60, hit: 70, procs: 4 }, campaign: { c: 3000, gap: 15, voice: 90, hit: 50, procs: 4 } };
+$$("[data-preset]").forEach((b) => b.addEventListener("click", () => { stopPlay(); const p = PRESETS[b.dataset.preset]; for (const k in p) $("#" + k).value = p[k]; render(); }));
+
+/* day chart: share of the day's interactions by hour (assumed shape) */
+const W = [0.4, 0.25, 0.2, 0.2, 0.3, 0.6, 1.5, 3.2, 5.6, 7.6, 8.9, 9.2, 8.3, 7.4, 7.6, 7.9, 8.1, 8.6, 7.7, 5.6, 3.6, 2.4, 1.5, 0.8];
+const SUM = W.reduce((a, b) => a + b, 0);
+const DAILY = 100000, AHT_MIN = 3;
+const conc = W.map((w) => (DAILY * (w / SUM) * AHT_MIN) / 60);
+let hour = 11;
+function drawDay() {
+  const svg = $("#dayChart"); svg.textContent = "";
+  const x0 = 34, y0 = 140, w = 680, h = 118;
+  const max = Math.max(...conc, S.c, 1000) * 1.08;
+  const y = (v) => y0 - (v / max) * h;
+  for (const t of [0, 250, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000].filter((t) => t <= max)) {
+    el("line", { x1: x0, x2: x0 + w - 20, y1: y(t), y2: y(t), stroke: "var(--line)" }, svg);
+    el("text", { x: x0 - 6, y: y(t) + 3.5, "text-anchor": "end" }, svg).textContent = fmt(t);
+  }
+  const bw = (w - 20) / 24;
+  conc.forEach((c, i) => {
+    const r = el("rect", { class: "bar-h" + (i === hour ? " on" : ""), x: x0 + i * bw + 2, y: y(c), width: bw - 4, height: y0 - y(c), rx: 2 }, svg);
+    const tt = el("title", {}, r); tt.textContent = `${String(i).padStart(2, "0")}:00 · ${fmt(c)} concurrent`;
+    r.addEventListener("click", () => { stopPlay(); setHour(i); });
+    if (i % 3 === 0) el("text", { x: x0 + i * bw + bw / 2, y: y0 + 14, "text-anchor": "middle" }, svg).textContent = String(i).padStart(2, "0") + ":00";
+  });
+  el("line", { class: "cap", x1: x0, x2: x0 + w - 20, y1: y(S.c), y2: y(S.c) }, svg);
+  el("text", { class: "capl", x: x0 + w - 22, y: y(S.c) - 5, "text-anchor": "end" }, svg).textContent = `simulating ${fmt(S.c)}`;
+  el("line", { x1: x0, x2: x0 + w - 20, y1: y(1000), y2: y(1000), stroke: "var(--ink-2)", "stroke-width": 1, "stroke-dasharray": "2 3" }, svg);
+  el("text", { x: x0 + 4, y: y(1000) - 5 }, svg).textContent = "1,000 target";
+}
+function setHour(i) { hour = i; $("#c").value = Math.max(10, Math.round(conc[i] / 10) * 10); render(); }
+let timer = null;
+function stopPlay() { if (timer) { clearInterval(timer); timer = null; $("#play").textContent = "Play the day"; } }
+$("#play").addEventListener("click", () => {
+  if (timer) return stopPlay();
+  $("#play").textContent = "Pause";
+  let i = 0; setHour(i);
+  timer = setInterval(() => { i += 1; if (i > 23) return stopPlay(); hour = i; $("#c").value = Math.max(10, Math.round(conc[i] / 10) * 10); render(); }, 700);
+});
+
+/* flow canvas: dots per turn; density scales with log(turns/s) */
+const cv = $("#flow"), ctx = cv.getContext("2d");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let dots = [], last = performance.now(), acc = 0;
+const LANES = () => { const W = cv.clientWidth, H = cv.clientHeight; return {
+  W, H, cols: [{ x: 60, l: "Customers" }, { x: W * 0.36, l: "Orchestrator" }, { x: W * 0.66, l: "LLM" }, { x: W * 0.66, l: "Systems" }, { x: W - 60, l: "" }] }; };
+function size() { const d = devicePixelRatio || 1; cv.width = cv.clientWidth * d; cv.height = cv.clientHeight * d; ctx.setTransform(d, 0, 0, d, 0, 0); }
+addEventListener("resize", size); size();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const { W, H } = LANES();
+  const ink2 = css("--ink-2"), muted = css("--muted"), brand = css("--brand-2"), accent = css("--accent"), line = css("--line");
+  ctx.clearRect(0, 0, W, H);
+  const xs = [70, W * 0.36, W * 0.72];
+  const ys = { c: H / 2, llm: H * 0.3, sys: H * 0.7 };
+  const util = R ? Math.min(1.4, R.orchUtil) : 0;
+  const orchColor = colorOf(level(util));
+  // stage boxes
+  const box = (x, y, w, h, label, sub, col) => { ctx.fillStyle = css("--surface-2"); ctx.strokeStyle = col || line; ctx.lineWidth = col ? 2 : 1; ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 9); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = ink2; ctx.font = "600 12px " + css("--ui"); ctx.textAlign = "center"; ctx.fillText(label, x, y - 2); ctx.fillStyle = muted; ctx.font = "11px " + css("--ui"); ctx.fillText(sub, x, y + 14); };
+  if (R) {
+    // spawn
+    const rate = R.tps ? 2 + Math.log10(1 + R.tps) * 9 : 0;
+    acc += dt * rate;
+    while (acc >= 1 && dots.length < 400) { acc -= 1; dots.push({ t: 0, lane: Math.random() < (R.llmRps ? 0.5 : 0) ? "llm" : "sys", j: (Math.random() - 0.5) * 18 }); }
+  }
+  // dots: customers -> orchestrator -> llm/sys
+  ctx.fillStyle = brand;
+  dots = dots.filter((d) => d.t < 1);
+  for (const d of dots) {
+    d.t += dt * (reduce ? 0 : 0.55);
+    let x, y;
+    const ty = d.lane === "llm" ? ys.llm : ys.sys;
+    if (d.t < 0.4) { const k = d.t / 0.4; x = xs[0] + 52 + (xs[1] - 64 - xs[0] - 52) * k; y = ys.c + d.j * 0.5; }
+    else { const k = (d.t - 0.4) / 0.6; x = xs[1] + 64 + (xs[2] - 75 - xs[1] - 64) * k; y = ys.c + (ty - ys.c) * k + d.j * 0.3; if (k > 0.85) ctx.fillStyle = accent; }
+    ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = brand;
+  }
+  ctx.globalAlpha = 1;
+  if (R) {
+    box(xs[0], ys.c, 104, 52, "Customers", fmt(S.c) + " live", null);
+    box(xs[1], ys.c, 128, 56, "Orchestrator", fmt(R.orchUtil * 100) + "% of " + S.procs, orchColor);
+    box(xs[2], ys.llm, 150, 48, "LLM · " + R.m.name, R.llmRps ? fmt(R.llmRps, 1) + " req/s" : "not used", null);
+    box(xs[2], ys.sys, 150, 48, "Enterprise systems", fmt(R.live) + " calls/s", colorOf(level(R.worstBulk)));
+  }
+  requestAnimationFrame(frame);
+}
+render();
+requestAnimationFrame(frame);
+
+/* ---------------- evidence charts ---------------- */
+function hbars(svgId, rows, { max, unit = "", dec = 0, note }) {
+  const svg = $("#" + svgId); const x0 = 150, w = 270, rowH = 40, top = 14;
+  rows.forEach(([label, v, col, sub], i) => {
+    const y = top + i * rowH;
+    el("text", { x: 0, y: y + 14 }, svg).textContent = label;
+    if (sub) { const t = el("text", { x: 0, y: y + 28 }, svg); t.textContent = sub; t.setAttribute("style", "fill:var(--muted);font-size:10.5px"); }
+    el("rect", { x: x0, y: y + 4, width: w, height: 16, rx: 3, fill: "var(--sunken)" }, svg);
+    el("rect", { x: x0, y: y + 4, width: Math.max(2, (v / max) * w), height: 16, rx: 3, fill: col || "var(--brand-2)" }, svg);
+    el("text", { class: "v", x: x0 + Math.max(2, (v / max) * w) + 6, y: y + 16.5 }, svg).textContent = fmt(v, dec) + unit;
+  });
+  svg.setAttribute("viewBox", `0 0 460 ${top + rows.length * rowH + 4}`);
+}
+hbars("evalChart", [["Deterministic", 100, "var(--brand-2)", "golden, 46/46"], ["Deterministic", 71, "var(--accent)", "held-out reworded, 12/17"], ["Claude Haiku 5.5", 100, "var(--brand-2)", "golden, 46/46"], ["Claude Haiku 5.5", 94, "var(--brand-2)", "held-out reworded, 16/17"], ["Qwen3 14B, RTX 3090", 87, "var(--accent)", "golden, 40/46"]], { max: 125, unit: "%" });
+hbars("latChart", [["Deterministic", 0.14, "var(--brand-2)", "turn complete p50"], ["Claude Haiku 5.5", 2.63, "var(--brand-2)", "turn complete p50"], ["Qwen3 14B, RTX 3090", 7.75, "var(--accent)", "turn complete p50"]], { max: 9.4, unit: " s", dec: 2 });
+hbars("sttChart", [["Parakeet, Mac M4", 0.19, "var(--brand-2)", "MLX, on device"], ["faster-whisper, RTX 3090", 0.28, "var(--brand-2)", "over Tailscale"], ["Whisper turbo, Mac", 1.05, "var(--accent)", "why Parakeet is the default"]], { max: 1.3, unit: " s", dec: 2 });
+hbars("loadChart", [["First token p50", 410, "var(--brand-2)", "400 ms of it is the stub"], ["First token p95", 1000, "var(--brand-2)", ""], ["First token p99", 2000, "var(--accent)", ""], ["Turn complete p95", 17, "var(--ok)", "after the stream ends"]], { max: 2600, unit: " ms" });
+
+/* nav highlight */
+const links = $$(".nav a.link");
+const obs = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) links.forEach((l) => l.classList.toggle("on", l.getAttribute("href") === "#" + e.target.id)); }), { rootMargin: "-40% 0px -55% 0px" });
+$$("main section[id]").forEach((s) => obs.observe(s));
+})();
+</script>
+</body>
+</html>
