@@ -1,0 +1,8 @@
+# Shared enterprise systems, declared once and reused by every workflow pack.
+# A pack that needs a new system (e.g. Cards) declares it in its own manifest.
+# Base URLs come from <NAME>_URL environment variables, defaulting to MOCKS_URL.
+crm: { display_name: Customer CRM }
+loans: { display_name: Loan Management }
+payments: { display_name: Payments }
+policy: { display_name: Policy Knowledge }
+ops: { display_name: Service Operations }

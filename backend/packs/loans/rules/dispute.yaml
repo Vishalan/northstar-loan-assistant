@@ -1,0 +1,19 @@
+ruleset: dispute_eligibility
+rules:
+  - id: DISPUTE_OUT_OF_WINDOW
+    when: { charge.days_since: { gt: 90 } }
+    decision: { allowed: false, reason: window_closed, window_days: 90 }
+    clause: LOAN-TNC-9.4
+    explain: Charges can be disputed within 90 days; this one was levied {{ charge.days_since }} days ago.
+  - id: DISPUTE_DUPLICATE_CHARGE
+    when: { charge.is_duplicate: true }
+    decision: { allowed: true, expected_outcome: reversal, reversal_working_days: 7 }
+    clause: [LOAN-TNC-9.2, LOAN-TNC-9.4]
+    explain: >-
+      Only one dishonour charge is allowed per instalment, so the extra charge qualifies for reversal
+      within 7 working days of the dispute being accepted.
+  - id: DISPUTE_IN_WINDOW
+    when: {}
+    decision: { allowed: true, expected_outcome: review, reversal_working_days: 7 }
+    clause: LOAN-TNC-9.4
+    explain: The charge is within the 90-day dispute window and will be reviewed.

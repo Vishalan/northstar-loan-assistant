@@ -1,0 +1,32 @@
+ruleset: prepayment
+rules:
+  - id: PREPAY_FIXED_LOCKIN
+    when: { product.rate_type: fixed, loan.months_since_disbursal: { lt: 12 } }
+    decision: { allowed: false, reason: lock_in, allowed_from: "{{ loan.lock_in_until }}" }
+    clause: LOAN-TNC-7.4
+    explain: Part-prepayment is not permitted during the 12-month lock-in, which ends on {{ loan.lock_in_until }}.
+  - id: PREPAY_FLOATING_MIN_AMOUNT
+    when: { product.rate_type: floating, request.amount: { lt: 5000 } }
+    decision: { allowed: false, reason: below_minimum, minimum: 5000 }
+    clause: LOAN-TNC-7.2
+    explain: The minimum part-prepayment on a Flexi loan is Rs 5,000.
+  - id: PREPAY_FLOATING_NO_CHARGE
+    when: { product.rate_type: floating }
+    decision: { allowed: true, charge_pct: 0, gst_pct: 0, modes: [reduce_tenure, reduce_emi] }
+    clause: LOAN-TNC-7.2
+    explain: Flexi (floating rate) loans can be part-prepaid at any time with no charge.
+  - id: PREPAY_FIXED_MIN_AMOUNT
+    when: { product.rate_type: fixed, request.amount: { lt: 10000 } }
+    decision: { allowed: false, reason: below_minimum, minimum: 10000 }
+    clause: LOAN-TNC-7.5
+    explain: The minimum part-prepayment on a Fixed loan is Rs 10,000.
+  - id: PREPAY_FIXED_YEARLY_LIMIT
+    when: { product.rate_type: fixed, loan.prepayments_this_fy: { gte: 2 } }
+    decision: { allowed: false, reason: yearly_limit }
+    clause: LOAN-TNC-7.5
+    explain: Fixed loans allow two part-prepayments per financial year, and both have been used.
+  - id: PREPAY_FIXED_AFTER_LOCKIN
+    when: { product.rate_type: fixed }
+    decision: { allowed: true, charge_pct: 3, gst_pct: 18, modes: [reduce_tenure, reduce_emi] }
+    clause: LOAN-TNC-7.5
+    explain: After the lock-in, Fixed loans can be part-prepaid with a 3% charge plus GST.

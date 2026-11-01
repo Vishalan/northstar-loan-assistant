@@ -1,0 +1,19 @@
+ruleset: foreclosure
+rules:
+  - id: FORECLOSE_FIXED_LOCKIN
+    when: { product.rate_type: fixed, loan.months_since_disbursal: { lt: 12 } }
+    decision: { allowed: false, reason: lock_in, allowed_from: "{{ loan.lock_in_until }}", charge_pct: 3, gst_pct: 18 }
+    clause: [LOAN-TNC-7.4, LOAN-TNC-8.1]
+    explain: >-
+      Foreclosure is not permitted during the 12-month lock-in, which ends on {{ loan.lock_in_until }}.
+      After that a 3% charge plus GST applies.
+  - id: FORECLOSE_FLOATING_FREE
+    when: { product.rate_type: floating }
+    decision: { allowed: true, charge_pct: 0, gst_pct: 0 }
+    clause: [LOAN-TNC-7.2, LOAN-TNC-8.1]
+    explain: Flexi loans can be foreclosed at any time without a charge.
+  - id: FORECLOSE_FIXED_CHARGE
+    when: { product.rate_type: fixed }
+    decision: { allowed: true, charge_pct: 3, gst_pct: 18 }
+    clause: LOAN-TNC-8.1
+    explain: Fixed loans can be foreclosed after the lock-in with a 3% charge on the outstanding principal plus GST.

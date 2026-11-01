@@ -1,0 +1,14 @@
+ruleset: rate_reset
+rules:
+  - id: RESET_FLOATING_EBLR
+    when: { product.rate_type: floating }
+    decision: { allowed: true, tenure_unchanged: true, emi_recomputed: true }
+    clause: LOAN-TNC-4.3
+    explain: >-
+      Flexi loans are linked to the EBLR. When the benchmark changes, the rate resets from the next
+      quarter, the remaining tenure stays the same and the EMI is recalculated on the outstanding principal.
+  - id: FIXED_RATE_NO_RESET
+    when: { product.rate_type: fixed }
+    decision: { allowed: false, reason: fixed_rate }
+    clause: LOAN-TNC-4.4
+    explain: Fixed rate loans keep the sanctioned rate; the EMI only changes after a part-prepayment.

@@ -1,0 +1,172 @@
+# Golden questions for the loan pack. `contains` = figures/phrases the reply must state;
+# `tools` = tools that must run; `action` = action that must be proposed; `forbid` = must not appear.
+cases:
+  - id: L01-emi-change
+    customer: C1001
+    question: My EMI increased this month. Why?
+    contains: ["₹17,195", "₹17,416", "11.25%"]
+    tools: [loans_explain_emi_change]
+  - id: L02-emi-previous-vs-current
+    customer: C1001
+    question: Why was my previous EMI different from my current one?
+    contains: ["₹17,195", "₹17,416"]
+    tools: [loans_explain_emi_change]
+  - id: L03-emi-change-cause
+    customer: C1001
+    question: Why did my EMI go up? Was it a rate change?
+    contains: ["EBLR", "1 Oct 2026"]
+    tools: [loans_explain_emi_change]
+  - id: L04-prepay-50k
+    customer: C1001
+    question: What happens if I prepay ₹50,000?
+    contains: ["₹22,883", "4 months"]
+    tools: [loans_prepayment_options]
+  - id: L05-prepay-50k-interest
+    customer: C1001
+    question: If I make a ₹50,000 prepayment today, how much interest would I save?
+    contains: ["₹22,883"]
+    tools: [loans_prepayment_options]
+  - id: L06-prepay-reduce-emi
+    customer: C1001
+    question: If I prepay 50000 and keep the same tenure, what would my new EMI be?
+    contains: ["₹15,970"]
+    tools: [loans_prepayment_options]
+  - id: L07-extra-20k-tenure
+    customer: C1001
+    question: Would paying ₹20,000 extra reduce my tenure?
+    contains: ["1 month"]
+    tools: [loans_prepayment_options]
+  - id: L08-next-emi
+    customer: C1001
+    question: What's my next EMI?
+    contains: ["₹17,416", "5 Nov 2026"]
+    tools: [loans_loan_overview]
+  - id: L09-outstanding
+    customer: C1001
+    question: How much do I still owe on my loan?
+    contains: ["₹6,02,346"]
+    tools: [loans_loan_overview]
+  - id: L10-last-payment
+    customer: C1001
+    question: Did my last payment go through?
+    contains: ["5 Oct 2026"]
+  - id: L11-foreclose-floating
+    customer: C1001
+    question: Am I eligible for foreclosure without a penalty?
+    contains: ["₹6,06,430"]
+    tools: [loans_foreclosure_options]
+    forbid: ["lock-in"]
+  - id: L12-context-followup-amount
+    customer: C1001
+    history: ["What if I prepay ₹50,000?"]
+    question: Go ahead and request it, reduce my tenure
+    action: loans_create_prepayment_request
+  - id: L13-request-prepayment
+    customer: C1001
+    question: Please file a prepayment request of ₹50,000 to reduce my EMI
+    action: loans_create_prepayment_request
+  - id: L14-failed-payments
+    customer: C1002
+    question: Show me the payments that failed in the last six months and explain what happened.
+    contains: ["10 Jun 2026", "10 Sep 2026", "insufficient", "mandate"]
+    tools: [loans_payment_history]
+  - id: L15-charged-twice
+    customer: C1002
+    question: Why was I charged twice for a bounced payment?
+    contains: ["₹590"]
+    tools: [loans_payment_history]
+  - id: L16-dispute
+    customer: C1002
+    history: ["Show my failed payments"]
+    question: Raise a dispute for the duplicate charge
+    action: loans_raise_payment_dispute
+  - id: L17-fixed-emi-unchanged
+    customer: C1002
+    question: Did my EMI change this month?
+    contains: ["₹13,167"]
+    tools: [loans_explain_emi_change]
+  - id: L18-fixed-prepay-charge
+    customer: C1002
+    question: What if I prepay ₹50,000?
+    contains: ["₹1,770"]
+    tools: [loans_prepayment_options]
+  - id: L19-fixed-next-emi
+    customer: C1002
+    question: When is my next EMI due?
+    contains: ["10 Nov 2026", "₹13,167"]
+  - id: L20-lockin-foreclosure
+    customer: C1003
+    question: Am I eligible for foreclosure without a penalty?
+    contains: ["20 Feb 2027"]
+    tools: [loans_foreclosure_options]
+  - id: L21-lockin-prepay
+    customer: C1003
+    question: Can I prepay ₹50,000 now?
+    contains: ["20 Feb 2027"]
+    tools: [loans_prepayment_options]
+    forbid: ["saves"]
+  - id: L22-options
+    customer: C1003
+    question: Based on my current loan and applicable terms, what are my options?
+    contains: ["20 Feb 2027"]
+  - id: L23-statement
+    customer: C1003
+    question: Send me a repayment statement
+    tools: [loans_generate_statement]
+  - id: L24-kavya-next-emi
+    customer: C1003
+    question: What's my EMI and when is it due?
+    contains: ["₹10,181", "20 Nov 2026"]
+  - id: L25-rohan-loan-emi-change
+    customer: C1004
+    question: Why did my loan EMI go up?
+    contains: ["₹4,661", "₹4,683"]
+    tools: [loans_explain_emi_change]
+  - id: L26-no-amount-asks
+    customer: C1001
+    question: I want to prepay part of my loan
+    contains: ["how much"]
+    case_insensitive: true
+  - id: L27-voice-next-emi
+    customer: C1001
+    channel: voice
+    question: What's my next EMI?
+    contains: ["₹17,416"]
+  - id: L28-voice-switch-topic
+    customer: C1001
+    channel: voice
+    history: ["What's my next EMI?"]
+    question: Actually, check my last payment first
+    contains: ["5 Oct 2026"]
+  - id: L29-voice-extra-payment
+    customer: C1001
+    channel: voice
+    history: ["What's my next EMI?", "Actually, check my last payment first"]
+    question: Okay, now tell me whether paying ₹20,000 extra would reduce my tenure
+    contains: ["1 month"]
+  - id: L30-mandate
+    customer: C1002
+    question: Is my auto-debit mandate active?
+    contains: ["UPI AutoPay"]
+  - id: L31-voice-misheard-failed
+    customer: C1002
+    channel: voice
+    question: show my field payments in the last six months
+    contains: ["10 Jun"]
+    tools: [loans_payment_history]
+  - id: L32-voice-next-due-date
+    customer: C1001
+    channel: voice
+    question: what is my next due date
+    contains: ["5 Nov 2026"]
+    tools: [loans_loan_overview]
+  - id: L33-emis-left
+    customer: C1001
+    question: how many installments are left
+    contains: ["42"]
+    tools: [loans_loan_overview]
+  - id: L34-vague-payments
+    customer: C1002
+    channel: voice
+    question: tell me about my payments
+    tools: [loans_payment_history]

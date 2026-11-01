@@ -1,0 +1,37 @@
+# One command: docker compose up --build   ->  http://localhost:3000
+services:
+  mocks:
+    build: ./backend
+    command: uvicorn mocks.app:app --host 0.0.0.0 --port 8100
+    environment:
+      CHAOS_PRESET: ${CHAOS_PRESET:-realistic}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:-dev-service-token}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      MOCKS_DB: /data/mocks.db
+    volumes: [mocksdata:/data]
+    ports: ["8100:8100"]
+
+  redis:
+    image: redis:7-alpine
+
+  orchestrator:
+    build: ./backend
+    env_file: [{path: .env, required: false}]
+    environment:
+      MOCKS_URL: http://mocks:8100
+      REDIS_URL: redis://redis:6379/0
+      APP_DB: /data/app.db
+    volumes: [appdata:/data]
+    depends_on: [mocks, redis]
+    ports: ["8000:8000"]
+
+  web:
+    build:
+      context: ./web
+      args: { NEXT_PUBLIC_API_URL: "http://localhost:8000" }
+    depends_on: [orchestrator]
+    ports: ["3000:3000"]
+
+volumes:
+  mocksdata:
+  appdata:

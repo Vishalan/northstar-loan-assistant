@@ -1,0 +1,7 @@
+ruleset: dishonour_charge
+rules:
+  - id: BOUNCE_ONCE_PER_INSTALMENT
+    when: {}
+    decision: { allowed: true, charge_per_instalment: 590, max_charges_per_instalment: 1 }
+    clause: LOAN-TNC-9.2
+    explain: A dishonoured EMI attracts one charge of Rs 590 (Rs 500 plus GST) per instalment.

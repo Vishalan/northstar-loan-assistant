@@ -1,0 +1,210 @@
+pack: loan_servicing
+namespace: loans
+version: 1.0.0
+applies_when: { has_product: [loan] }
+# How the session finds this customer's products, and which composite to warm at login so the
+# first questions (next EMI, balance, last payment) are answered from cache.
+products: { tool: list_loans, list_key: loans, type: loan, id_field: loan_id, label: "{product_name} {loan_id}",
+            active_field: status, active_value: active, warm: loan_overview }
+overview: overview   # handler that contributes loans and payments to the account panel
+suggestions:
+  - Why did my EMI change this month?
+  - How much would I save by prepaying ₹50,000?
+  - Show my failed payments in the last six months
+  - Can I foreclose my loan without a penalty?
+
+# Primitive tools map 1:1 to system endpoints. Most are internal (expose: false) and used by the
+# composite tools in handlers.py; the composites are what the model sees.
+tools:
+  list_loans:
+    system: loans
+    http: { method: GET, path: "/loans/customers/{customer_id}/loans" }
+    label: Loading your loans
+    timeout_ms: 500
+    cache_s: 60
+    stale_ok_s: 600
+    prefetch: true
+    expose: false
+  get_loan:
+    system: loans
+    http: { method: GET, path: "/loans/loans/{loan_id}" }
+    params: { loan_id: { type: string } }
+    required: [loan_id]
+    label: Checking your loan
+    timeout_ms: 500
+    cache_s: 60
+    stale_ok_s: 600
+    expose: false
+  get_rate_history:
+    system: loans
+    http: { method: GET, path: "/loans/loans/{loan_id}/rate-history" }
+    params: { loan_id: { type: string } }
+    required: [loan_id]
+    label: Reading your rate history
+    timeout_ms: 500
+    cache_s: 300
+    stale_ok_s: 3600
+    expose: false
+  get_schedule:
+    system: loans
+    http: { method: GET, path: "/loans/loans/{loan_id}/schedule" }
+    params: { loan_id: { type: string } }
+    required: [loan_id]
+    label: Loading your repayment schedule
+    timeout_ms: 500
+    cache_s: 300
+    stale_ok_s: 3600
+    expose: false
+  get_transactions:
+    system: payments
+    http: { method: GET, path: "/payments/loans/{loan_id}/transactions" }
+    params: { loan_id: { type: string }, since: { type: string } }
+    required: [loan_id]
+    label: Checking your payments
+    timeout_ms: 1500
+    retries: 1
+    cache_s: 30
+    stale_ok_s: 600
+    expose: false
+  get_mandates:
+    system: payments
+    http: { method: GET, path: "/payments/loans/{loan_id}/mandates" }
+    params: { loan_id: { type: string } }
+    required: [loan_id]
+    label: Checking your repayment mandate
+    timeout_ms: 1500
+    cache_s: 300
+    stale_ok_s: 3600
+    expose: false
+
+  loan_overview:
+    handler: loan_overview
+    label: Checking your loan
+    description: >-
+      Current state of a loan: outstanding principal, rate, EMI, next due date and amount, tenure left,
+      the date of the last EMI (when the loan ends), and the last payment. Use for "what's my next EMI", "how much do I owe", "when is my EMI due",
+      "did my last payment go through".
+    params:
+      loan_id: { type: string, description: "Loan id like PL-20391. Omit to use the loan in focus." }
+  explain_emi_change:
+    handler: explain_emi_change
+    label: Comparing your EMIs and rate history
+    description: >-
+      Explains why a loan's EMI changed: compares the previous and current EMI, the rate change, its cause
+      (benchmark reset or repricing) and the applicable policy, with the recalculation shown.
+    params:
+      loan_id: { type: string, description: "Omit to use the loan in focus." }
+  prepayment_options:
+    handler: prepayment_options
+    label: Calculating your prepayment options
+    description: >-
+      What a lump-sum part-prepayment (or a one-time extra payment) would do: eligibility under policy,
+      charges, interest saved and months saved if the tenure is reduced, and the new EMI if the EMI is
+      reduced. Use for "what if I prepay", "would paying X extra reduce my tenure", "how much interest would I save".
+    params:
+      loan_id: { type: string, description: "Omit to use the loan in focus." }
+      amount: { type: number, minimum: 1, description: "Amount in rupees." }
+    required: [amount]
+  payment_history:
+    handler: payment_history
+    label: Checking your payments
+    description: >-
+      Debit attempts for a loan over the last N months, with failed attempts, the reason each failed,
+      dishonour charges levied (including duplicate charges), the repayment mandate status, and whether
+      a charge can be disputed. Use for "show my failed payments", "check my last payment", "why was I charged".
+    params:
+      loan_id: { type: string, description: "Omit to use the loan in focus." }
+      months: { type: integer, minimum: 1, description: "Look-back window in months, default 6." }
+  foreclosure_options:
+    handler: foreclosure_options
+    label: Checking foreclosure rules and the payoff amount
+    description: >-
+      Whether the loan can be foreclosed now and with what charge, the amount payable today, the earliest
+      eligible date if it is not allowed yet, and the alternatives available (part-prepayment, statement).
+      Use for "can I foreclose", "close my loan", "am I eligible without penalty", "what are my options".
+    params:
+      loan_id: { type: string, description: "Omit to use the loan in focus." }
+
+actions:
+  create_prepayment_request:
+    tier: confirm_otp
+    system: ops
+    prepare: prepare_prepayment
+    label: Preparing your prepayment request
+    description: >-
+      File a part-prepayment request for a loan with the chosen mode. Only after the customer has asked
+      to go ahead.
+    params:
+      loan_id: { type: string, description: "Omit to use the loan in focus." }
+      amount: { type: number, minimum: 1 }
+      mode: { type: string, enum: [reduce_tenure, reduce_emi] }
+    required: [amount, mode]
+  request_foreclosure:
+    tier: confirm_otp
+    system: ops
+    prepare: prepare_foreclosure
+    label: Preparing your foreclosure request
+    description: File a request to foreclose (close) the loan at the quoted payable amount.
+    params:
+      loan_id: { type: string }
+  raise_payment_dispute:
+    tier: confirm
+    system: ops
+    prepare: prepare_dispute
+    label: Preparing your dispute
+    description: >-
+      Dispute a charge on a loan payment, e.g. a duplicate dishonour charge. Use the txn_id from payment_history.
+    params:
+      loan_id: { type: string }
+      txn_id: { type: string }
+      reason: { type: string, description: "Short reason in the customer's words." }
+    required: [txn_id, reason]
+  generate_statement:
+    tier: read
+    system: ops
+    prepare: prepare_statement
+    label: Generating your statement
+    description: Generate a repayment statement PDF for a loan.
+    params:
+      loan_id: { type: string }
+
+# Deterministic intent map: used by the fallback planner (no LLM) and for speculative prefetch on
+# interim voice transcripts. The LLM path does not depend on it.
+intents:
+  - id: emi_change
+    match: ["emi.{0,40}(increas|went up|go up|higher|more|chang|different|jump)", "(why|how come).{0,30}emi", "(previous|last|old) emi"]
+    tool: explain_emi_change
+  - id: prepayment_request
+    match: ["(go ahead|proceed|request|submit|file|do it|book).{0,40}(prepay|part.?pay|extra)", "^(yes,? )?(go ahead|do it|proceed)\\b.*(tenure|emi)"]
+    tool: create_prepayment_request
+    args: { amount: $amount, mode: $mode }
+    speculative: false
+  - id: prepayment
+    match: ["prepay\\w*(.{0,30}loan)?", "part.?pay", "(pay|paying).{0,25}(extra|more|additional|lump)", "reduce my tenure", "interest.{0,20}save"]
+    tool: prepayment_options
+    args: { amount: $amount }
+  - id: dispute
+    match: ["dispute", "raise a (complaint|ticket)", "(reverse|refund).{0,20}charge"]
+    tool: raise_payment_dispute
+    args: { txn_id: $last_txn, reason: $text }
+    speculative: false
+  - id: payments
+    match: ["fail", "bounc", "mandate", "missed (payment|emi)", "payments? (in|over|for|from) the (last|past)", "auto.?debit", "(last|recent|previous) payment", "payment (history|status)", "charged twice", "why .{0,20}charge"]
+    tool: payment_history
+  - id: statement
+    match: ["statement"]
+    tool: generate_statement
+    speculative: false
+  - id: foreclosure
+    match: ["foreclos", "close (my|the) loan", "pay off", "penalty", "(what are|my) options"]
+    tool: foreclosure_options
+  - id: overview
+    match: ["loan.{0,15}end", "last emi", "(finish|close|end).{0,15}loan", "next.{0,10}emi", "next (due|payment)", "due date", "emis? (are )?(left|remaining|pending)", "emi (amount|due)", "what'?s my emi", "emi.{0,30}\\bdue\\b", "outstanding", "balance", "how much do i (still )?owe", "when is my", "my loan"]
+    tool: loan_overview
+  # Broad last resorts: a short match only wins when no specific intent matched (longest match wins).
+  - id: payments_any
+    match: ["payments?", "debits?", "transactions?"]
+    tool: payment_history
+  - id: loan_any
+    match: ["\\bemi\\b", "\\bdue\\b", "\\bloan\\b", "tenure"]
+    tool: loan_overview

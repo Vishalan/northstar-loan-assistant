@@ -1,0 +1,57 @@
+pack: core_servicing
+namespace: core
+version: 1.0.0
+applies_when: {}        # every customer gets the shared capabilities
+suggestions: []
+
+tools:
+  customer_profile:
+    system: crm
+    http: { method: GET, path: "/crm/customers/{customer_id}" }
+    label: Checking your profile
+    timeout_ms: 400
+    cache_s: 600
+    stale_ok_s: 3600
+    prefetch: true
+    description: The customer's profile (name, masked contact details, KYC status, segment).
+  service_requests:
+    system: ops
+    http: { method: GET, path: "/ops/customers/{customer_id}/requests" }
+    label: Checking your service requests
+    timeout_ms: 1200
+    cache_s: 5
+    stale_ok_s: 600
+    description: The customer's service requests with status and SLA date. Use for "what's the status of my request".
+  policy_search:
+    handler: policy_search
+    label: Searching the policy documents
+    description: >-
+      Search the lender's terms and conditions. Use only for general "what does the policy say about X"
+      questions; for decisions about this customer's own loan or card use the specific tools, which apply
+      the rules to their account.
+    params:
+      query: { type: string }
+    required: [query]
+
+actions:
+  escalate_to_human:
+    tier: confirm
+    system: ops
+    prepare: prepare_escalation
+    label: Preparing a hand-off to an agent
+    description: >-
+      Create a ticket for a human agent with a summary of the conversation, when the customer asks for a
+      person or the assistant cannot resolve the issue.
+    params:
+      reason: { type: string, description: "One-line summary of the issue and what was already tried." }
+    required: [reason]
+
+intents:
+  - id: human
+    match: ["(talk|speak|connect).{0,20}(human|person|agent|someone)", "escalat"]
+    tool: escalate_to_human
+    args: { reason: $text }
+    speculative: false
+  - id: requests
+    match: ["(status|track).{0,20}request", "my requests"]
+    tool: service_requests
