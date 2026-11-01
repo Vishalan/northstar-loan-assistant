@@ -3,11 +3,15 @@
 A working proof of concept: customers chat or talk to an assistant that answers from their own loan and
 card records, shows the evidence behind every figure, and files service requests (prepayment, dispute,
 foreclosure, statement) with confirmation and OTP. Built on a reusable platform core; credit cards are a
-second workflow added as a pack.
+second workflow added as a pack. Every infrastructure piece (LLM, speech, storage, enterprise systems) is
+an adapter you can point at a cloud service or your own hardware.
 
-- Architecture, decisions, measured results and deviations from the original design: [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Interactive architecture, swappable modules and a load simulator for 1,000 concurrent conversations:**
+  https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH
+- Architecture, decisions, measured results, scale and deviations from the original design: [ARCHITECTURE.md](ARCHITECTURE.md)
 - API and event contract: [docs/api-contract.md](docs/api-contract.md)
-- Evidence: [docs/evals/latest.md](docs/evals/latest.md), [docs/perf/](docs/perf/), [docs/screenshots/](docs/screenshots/)
+- Evidence: [docs/evals/](docs/evals/), [docs/perf/](docs/perf/), [docs/screenshots/](docs/screenshots/)
+- Self-hosted models on a GPU box: [deploy/selfhosted/README.md](deploy/selfhosted/README.md)
 
 ## Run it (no keys needed)
 
@@ -16,22 +20,46 @@ Requirements: [uv](https://docs.astral.sh/uv/) and Node 20+. Chrome for voice.
 ```bash
 cp .env.example .env          # optional; defaults work
 make install                  # uv sync + npm ci
-make up                       # mocks :8100, orchestrator :8000, web :3000
+make up                       # mocks :8100, orchestrator :8000, web :3000 (+ speech :8200 on Apple Silicon)
 open http://localhost:3000    # pick a demo customer; the OTP is shown on screen
 make stop
 ```
 
 Or run them in separate terminals: `make mocks`, `make api`, `make web`, and on Apple Silicon `make speech`.
-
-**Speech recognition:** on Apple Silicon, `make up` also starts a local speech service (`speech/`, port 8200) that
-runs NVIDIA's Parakeet TDT 0.6B v3 via MLX: about 140 ms to transcribe a 4-second question, nothing sent to Google.
-The voice bar shows "On-device recognition" when it is used; without it the app falls back to Chrome's recogniser.
-English only for now (Parakeet v3 has no Hindi). Measurements: `research_notes/Local speech stack/`.
 With Docker: `docker compose up --build` (written, not verified on the build machine).
 
-**Claude planner:** set `ANTHROPIC_API_KEY` in `.env` (or `ant auth login`) and restart `make api`. Without
-credentials the orchestrator uses the deterministic intent planner, which handles the demo journeys.
-`GET http://localhost:8000/readyz` shows which planner is active.
+`make up` runs in demo mode (on-screen OTP codes, persona picker, chaos controls). Outside demo mode the API
+refuses to start until `JWT_SECRET`, `ADMIN_TOKEN` and `SERVICE_TOKEN` are set to real values.
+
+**Planner.** Without credentials the orchestrator uses the deterministic intent planner, which handles the demo
+journeys. For the LLM planner set `ANTHROPIC_API_KEY` in `.env` and restart `make api`: Claude Haiku 5.5 by
+default, Opus 5.5 as failover, swappable at runtime with `PUT /v1/admin/model`. Other providers (an
+Anthropic-compatible proxy, Bedrock, Vertex, an open model on your own GPU) are entries in
+`backend/src/orchestrator/providers.yaml`, picked with `LLM_PROVIDER`. `GET http://localhost:8000/readyz`
+shows which planner and model are active.
+
+**Speech.** On Apple Silicon, `make up` also starts the speech service (`speech/`, port 8200), which runs
+NVIDIA's Parakeet TDT 0.6B v3 on device via MLX: 130–250 ms to transcribe a question, nothing sent to a cloud.
+The voice bar shows "On-device recognition" when it is used; without it the app falls back to Chrome's
+recogniser and voice. The same service runs faster-whisper on an NVIDIA GPU, or forwards to any
+OpenAI-compatible speech API, and can serve a server-side voice (`TTS_ENGINE`, `NEXT_PUBLIC_TTS_URL`).
+
+## Self-hosted models (live demo only)
+
+Every model can also run on our own GPU box: Qwen3 14B through Ollama as the planner, faster-whisper
+large-v3-turbo for recognition and Kokoro for the voice, on an RTX 3090 (24 GB, power-capped at 300 W) with a
+Ryzen 5 3600X and 62 GB RAM. It is reached over **Tailscale**, so this mode only works from a machine on that
+tailnet. It is shown in the live demo; anyone else runs the default setup above.
+
+```bash
+make selfhosted-check   # LLM and speech on the GPU box reachable?
+make selfhosted         # mocks + API + web here; planner, recognition and voice on the GPU box
+```
+
+Measured: recognition ~280 ms per question and voice 300–380 ms per sentence over Tailscale; the 14B
+planner passes 40 of 46 golden questions at a 7.7 s median turn. That's why the default stays Claude with the
+deterministic fallback. Setup, specifications and the trade-off in full:
+[deploy/selfhosted/README.md](deploy/selfhosted/README.md).
 
 ## Demo customers and journeys
 
@@ -44,27 +72,40 @@ credentials the orchestrator uses the deterministic intent planner, which handle
 | Rohan Das | "Why is my card statement higher this month?" → "Dispute the ₹4,299 charge" (credit card pack) |
 
 Add `?demo=1` to the URL for the chaos controls (calm / realistic / bad day). `/latency` shows measured
-latency per stage and per system; `/evals` shows the last golden-set run.
+latency per stage, per system and per voice step; `/evals` shows the last golden-set run.
 
 ## Tests and evidence
 
 ```bash
-make test     # backend pytest (58) + web unit tests, typecheck, lint
-make eval     # golden set: 42 questions across 3 packs -> docs/evals/latest.md
+make test     # backend pytest (72), speech service (8, Apple Silicon), web unit tests (15), typecheck, lint
+make eval     # golden set: 46 questions across 3 packs -> docs/evals/latest.md
 make bench    # journey latency, cold cache, realistic and bad-day backends -> docs/perf/
 make load     # 1,000 concurrent sessions (start the API with LLM_MODE=stub TURN_RATE_LIMIT=100000)
 ```
+
+| | Result |
+|---|---|
+| Golden set, deterministic planner | 46/46, figure accuracy 1.0 |
+| Golden set, Claude Haiku 5.5 | 46/46, figure accuracy 1.0, first token p50 2.0 s |
+| Golden set, Qwen3 14B on the RTX 3090 | 40/46, turn p50 7.7 s |
+| Journeys with Claude Haiku 5.5, cold cache | 36/36 turns completed, first token p50 2.1–4.0 s |
+| Load, 1,000 concurrent sessions, model stubbed | 9,455 turns in 4 minutes, 0 failures, first token p50 410 ms |
+
+Run the eval against any provider: `LLM_MODE=llm LLM_PROVIDER=<name> uv run python evals/run.py` in `backend/`.
 
 ## Layout
 
 ```
 backend/
-  src/nsplatform/   platform core: connector gateway, calculators, policy engine, action executor, pack loader
-  src/orchestrator/ API, turn runner (Claude agent loop + deterministic planner), grounding check
+  src/nsplatform/   platform core: connector gateway, calculators, policy engine, action executor, pack loader,
+                    store (memory | Redis), database (SQLite | Postgres)
+  src/orchestrator/ API, turn runner (LLM agent loop + deterministic planner), grounding check, LLM providers
   src/mocks/        CRM, Loan Mgmt, Payments, Policy, Service Ops, Cards — seeded data + chaos injection
   packs/            core, loans, cards — manifest, handlers, rules, prompts, golden evals
   tests/ evals/ bench/ loadtest/
+speech/             speech service: recognition and voice engines behind one WebSocket protocol
 web/                Next.js app: chat, voice, account panel, requests, latency, evals
+deploy/selfhosted/  GPU box stack (speech on CUDA, Kokoro) reached over Tailscale
 docs/               API contract, eval and performance reports, screenshots
 ```
 

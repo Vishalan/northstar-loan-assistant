@@ -1,0 +1,34 @@
+# Self-hosted model stack for one NVIDIA GPU box, reached over Tailscale.
+#   LLM   Ollama on the host (Messages API on :11434)        -> orchestrator LLM_PROVIDER=selfhosted
+#   STT   this speech service, faster-whisper on the GPU      -> web NEXT_PUBLIC_STT_URL
+#   TTS   Kokoro-FastAPI (OpenAI-compatible /v1/audio/speech) -> proxied by the speech service at /v1/tts
+# Ports bind to the Tailscale address only (TAILNET_IP), never to the LAN or the internet.
+# Usage: see README.md in this folder.
+name: northstar-selfhosted
+
+services:
+  speech:
+    build: { context: ../../speech, dockerfile: Dockerfile.cuda }
+    restart: unless-stopped
+    gpus: all
+    environment:
+      ASR_ENGINE: faster-whisper
+      STT_MODEL: ${STT_MODEL:-large-v3-turbo}
+      TTS_ENGINE: openai
+      TTS_URL: ${TTS_URL:-http://kokoro:8880}
+      TTS_MODEL: kokoro
+      TTS_VOICE: ${TTS_VOICE:-af_heart}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    volumes: [models:/models]
+    ports: ["${TAILNET_IP:?set TAILNET_IP to this host's Tailscale address}:8201:8200"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  # Skip with TTS_URL pointing at a Kokoro already running on the host (ours does: :8880).
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:v0.2.4
+    profiles: [kokoro]
+    restart: unless-stopped
+    gpus: all
+
+volumes:
+  models:
