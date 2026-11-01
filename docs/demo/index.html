@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Northstar demo</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f4f1eb; --ink: #17212b; --muted: #5d6670; --brand: #136a80; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d1318; --ink: #ebe6dc; --muted: #9aa3ad; --brand: #7cc6d8; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 16px 40px; display: grid; gap: 14px; }
+  h1 { margin: 0; font: 600 26px/1.2 Georgia, "Times New Roman", serif; }
+  p { margin: 0; color: var(--muted); }
+  video { width: 100%; height: auto; border-radius: 12px; background: #000; }
+  a { color: var(--brand); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Northstar — AI loan servicing assistant</h1>
+  <p>A 60-second walkthrough. Source, architecture and measurements:
+    <a href="https://github.com/Vishalan/northstar-loan-assistant">github.com/Vishalan/northstar-loan-assistant</a></p>
+  <video controls playsinline preload="metadata" poster="northstar.jpg">
+    <source src="northstar.mp4" type="video/mp4">
+    <a href="northstar.mp4">Download the video</a>
+  </video>
+  <p>All data is synthetic. Northstar Finance is fictional.</p>
+</main>
+</body>
+</html>
