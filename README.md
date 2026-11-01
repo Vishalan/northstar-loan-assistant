@@ -39,12 +39,22 @@ With Docker: `docker compose up --build` (written, not verified on the build mac
 `make up` runs in demo mode (on-screen OTP codes, persona picker, chaos controls). Outside demo mode the API
 refuses to start until `JWT_SECRET`, `ADMIN_TOKEN` and `SERVICE_TOKEN` are set to real values.
 
-**Planner.** Without credentials the orchestrator uses the deterministic intent planner, which handles the demo
-journeys. For the LLM planner set `ANTHROPIC_API_KEY` in `.env` and restart `make api`: Claude Haiku 5.5 by
-default, Opus 5.5 as failover, swappable at runtime with `PUT /v1/admin/model`. Other providers (an
-Anthropic-compatible proxy, Bedrock, Vertex, an open model on your own GPU) are entries in
-`backend/src/orchestrator/providers.yaml`, picked with `LLM_PROVIDER`. `GET http://localhost:8000/readyz`
-shows which planner and model are active.
+### Model providers
+
+With no keys the orchestrator uses its built-in rule-based planner, which handles the demo journeys. To use a
+model, set these in `.env` and restart (`make stop && make up`):
+
+| Provider | Settings in `.env` |
+|---|---|
+| Claude, Anthropic API | `ANTHROPIC_API_KEY=...` (Claude Haiku 5.5 by default, Opus 5.5 as failover) |
+| Claude on AWS Bedrock | `LLM_PROVIDER=bedrock`, `BEDROCK_MODEL=<Bedrock model id>`, AWS credentials as usual, `AWS_REGION` |
+| Claude on Google Vertex AI | `LLM_PROVIDER=vertex`, `VERTEX_MODEL=<Vertex model id>`, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` |
+| Self-hosted open model (Ollama) | `ollama pull qwen3:14b`, then `LLM_PROVIDER=selfhosted`, `SELFHOSTED_LLM_URL=http://localhost:11434` (`SELFHOSTED_MODEL` to pick another model) |
+| Any Anthropic-compatible endpoint (gateway, proxy, vLLM, LiteLLM) | add an entry to `backend/src/orchestrator/providers.yaml` with its URL and key variable, then `LLM_PROVIDER=<name>` |
+
+`GET http://localhost:8000/readyz` shows the active provider and model; `PUT /v1/admin/model` swaps the model at
+runtime. Bedrock and Vertex are wired through the official SDK clients but were not run here (no cloud account on
+the build machine). All settings, with comments: [.env.example](.env.example).
 
 **Speech.** On Apple Silicon, `make up` also starts the speech service (`speech/`, port 8200), which runs
 NVIDIA's Parakeet TDT 0.6B v3 on device via MLX: 130–250 ms to transcribe a question, nothing sent to a cloud.
@@ -52,9 +62,10 @@ The voice bar shows "On-device recognition" when it is used; without it the app 
 recogniser and voice. The same service runs faster-whisper on an NVIDIA GPU, or forwards to any
 OpenAI-compatible speech API, and can serve a server-side voice (`TTS_ENGINE`, `NEXT_PUBLIC_TTS_URL`).
 
-## Self-hosted models (live demo only)
+## Self-hosted models on our GPU box (live demo only)
 
-Every model can also run on our own GPU box: Qwen3 14B through Ollama as the planner, faster-whisper
+Anyone can run the planner on their own machine with Ollama (see [Model providers](#model-providers)). We also
+run every model on our own GPU box: Qwen3 14B through Ollama as the planner, faster-whisper
 large-v3-turbo for recognition and Kokoro for the voice, on an RTX 3090 (24 GB, power-capped at 300 W) with a
 Ryzen 5 3600X and 62 GB RAM. It is reached over **Tailscale**, so this mode only works from a machine on that
 tailnet. It is shown in the live demo; anyone else runs the default setup above.
@@ -85,7 +96,7 @@ latency per stage, per system and per voice step; `/evals` shows the last golden
 ## Tests and evidence
 
 ```bash
-make test     # backend pytest (75), speech service (8, Apple Silicon), web unit tests (15), typecheck, lint
+make test     # backend pytest (79), speech service (8, Apple Silicon), web unit tests (15), typecheck, lint
 make eval     # golden set: 46 questions across 3 packs -> docs/evals/latest.md
 make eval-heldout  # 17 reworded questions (Hinglish, negations, two-part, typos) never used to tune the intents
 make bench    # journey latency, cold cache, realistic and bad-day backends -> docs/perf/
