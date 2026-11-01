@@ -98,7 +98,8 @@ gets both packs in one conversation. Its size: `handlers.py` 226 lines, `manifes
 
 ## Measured results
 
-All in `docs/` — rerun with `make eval`, `make bench`, `make load`.
+All in `docs/` — rerun with `make eval`, `make eval-heldout`, `make bench`, `make load`. The full latency and
+performance page, with per-journey and per-system numbers: [docs/performance.md](docs/performance.md).
 
 | Evidence | Result |
 |---|---|

@@ -6,12 +6,20 @@ foreclosure, statement) with confirmation and OTP. Built on a reusable platform 
 second workflow added as a pack. Every infrastructure piece (LLM, speech, storage, enterprise systems) is
 an adapter you can point at a cloud service or your own hardware.
 
-- **Interactive architecture, swappable modules and a load simulator for 1,000 concurrent conversations:**
-  https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH
-- Architecture, decisions, measured results, scale and deviations from the original design: [ARCHITECTURE.md](ARCHITECTURE.md)
-- API and event contract: [docs/api-contract.md](docs/api-contract.md)
-- Evidence: [docs/evals/](docs/evals/), [docs/perf/](docs/perf/), [docs/screenshots/](docs/screenshots/)
-- Self-hosted models on a GPU box: [deploy/selfhosted/README.md](deploy/selfhosted/README.md)
+## Start here
+
+| | |
+|---|---|
+| **Demo video** (60 s) | [docs/demo/northstar.mp4](docs/demo/northstar.mp4) |
+| **Interactive architecture**, swappable modules and a load simulator for 1,000 concurrent conversations | https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH |
+| **Architecture write-up**: decisions, trade-offs, scale, production path | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **Latency and performance** measurements, with the report behind each number | [docs/performance.md](docs/performance.md) |
+| **Run it locally** (no keys needed) | `make install && make up`, then open http://localhost:3000 ([details below](#run-it-no-keys-needed)) |
+| Live latency while it runs | http://localhost:3000/latency |
+| Self-hosted models on a GPU box | [deploy/selfhosted/README.md](deploy/selfhosted/README.md) |
+| API and event contract | [docs/api-contract.md](docs/api-contract.md) |
+
+[![Demo video](docs/demo/northstar.jpg)](docs/demo/northstar.mp4)
 
 ## Run it (no keys needed)
 
@@ -84,15 +92,7 @@ make bench    # journey latency, cold cache, realistic and bad-day backends -> d
 make load     # 1,000 concurrent sessions (start the API with LLM_MODE=stub TURN_RATE_LIMIT=100000)
 ```
 
-| | Result |
-|---|---|
-| Golden set, deterministic planner | 46/46, figure accuracy 1.0 |
-| Golden set, Claude Haiku 5.5 | 46/46, figure accuracy 1.0, first token p50 2.0 s |
-| Golden set, Qwen3 14B on the RTX 3090 | 40/46, turn p50 7.7 s |
-| Held-out reworded questions, deterministic planner | 12/17: regex intents miss new wording |
-| Held-out reworded questions, Claude Haiku 5.5 | 16/17, figure accuracy 1.0 (the miss asked for a dispute reason instead of proposing) |
-| Journeys with Claude Haiku 5.5, cold cache | 36/36 turns completed, first token p50 2.1–4.0 s |
-| Load, 1,000 concurrent sessions, model stubbed | 9,455 turns in 4 minutes, 0 failures, first token p50 410 ms |
+All measurements, with the report behind each one: [docs/performance.md](docs/performance.md).
 
 Run the eval against any provider: `LLM_MODE=llm LLM_PROVIDER=<name> uv run python evals/run.py` in `backend/`.
 
@@ -109,7 +109,7 @@ backend/
 speech/             speech service: recognition and voice engines behind one WebSocket protocol
 web/                Next.js app: chat, voice, account panel, requests, latency, evals
 deploy/selfhosted/  GPU box stack (speech on CUDA, Kokoro) reached over Tailscale
-docs/               API contract, eval and performance reports, screenshots
+docs/               performance.md, API contract, eval and performance reports, demo video, screenshots
 ```
 
 All data is synthetic. Northstar Finance is fictional.
