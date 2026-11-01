@@ -1,0 +1,37 @@
+cases:
+  - id: C01-statement-higher
+    customer: C1004
+    question: Why is my card statement higher this month?
+    contains: ["₹25,991", "₹18,449"]
+    tools: [cards_explain_statement]
+  - id: C02-statement-emi-line
+    customer: C1004
+    question: Why did my credit card bill go up?
+    contains: ["EMI"]
+    tools: [cards_explain_statement]
+  - id: C03-min-due
+    customer: C1004
+    question: What's the minimum due on my card?
+    contains: ["₹3,695"]
+    tools: [cards_card_summary]
+  - id: C04-due-date
+    customer: C1004
+    question: When is my card bill due?
+    contains: ["4 Nov 2026"]
+  - id: C05-interest-free
+    customer: C1004
+    question: How many interest-free days do I get if I spend on my card today?
+    contains: ["39"]
+  - id: C06-dispute
+    customer: C1004
+    question: Dispute the ₹4,299 charge from 12 October, I don't recognise it
+    action: cards_dispute_card_transaction
+  - id: C07-dispute-after-explain
+    customer: C1004
+    history: ["Why is my card statement higher this month?"]
+    question: I want to dispute the QuickMart charge of ₹4,299
+    action: cards_dispute_card_transaction
+  - id: C08-loan-still-works
+    customer: C1004
+    question: What's my next loan EMI?
+    contains: ["₹4,683"]

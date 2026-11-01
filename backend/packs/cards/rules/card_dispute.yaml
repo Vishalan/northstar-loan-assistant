@@ -1,0 +1,19 @@
+ruleset: card_dispute
+rules:
+  - id: CARD_DISPUTE_WINDOW_CLOSED
+    when: { txn.days_since_statement: { gt: 60 } }
+    decision: { allowed: false, reason: window_closed, window_days: 60 }
+    clause: CARD-TNC-6.2
+    explain: Card transactions can be disputed within 60 days of the statement they first appeared on.
+  - id: CARD_DISPUTE_EMI_CONVERTED
+    when: { txn.emi_converted: true }
+    decision: { allowed: false, reason: converted_to_emi }
+    clause: CARD-TNC-5.1
+    explain: A purchase already converted to EMI cannot be disputed here; please contact the merchant or an agent.
+  - id: CARD_DISPUTE_OK
+    when: {}
+    decision: { allowed: true, excluded_from_minimum_due: true, decision_days: 30 }
+    clause: CARD-TNC-6.2
+    explain: >-
+      The disputed amount is excluded from your minimum amount due while it is investigated, and you will get
+      a decision within 30 days.

@@ -1,0 +1,9 @@
+ruleset: card_minimum_due
+rules:
+  - id: CARD_MIN_DUE_STANDARD
+    when: {}
+    decision: { allowed: true, pct_of_balance: 5, floor: 200, includes: [emi_instalments, fees, taxes] }
+    clause: CARD-TNC-3.4
+    explain: >-
+      The minimum due is 5% of the statement balance excluding EMI instalments (at least Rs 200), plus EMI
+      instalments, fees and taxes billed in the statement.

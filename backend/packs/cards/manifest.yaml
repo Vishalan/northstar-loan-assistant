@@ -1,0 +1,102 @@
+pack: card_servicing
+namespace: cards
+version: 1.0.0
+applies_when: { has_product: [card] }
+products: { tool: list_cards, list_key: cards, type: card, id_field: card_id, label: "{product} ••{last4}",
+            warm: card_summary }
+overview: overview
+suggestions:
+  - Why is my card statement higher this month?
+  - What's the minimum due on my card?
+
+# A system this pack needs that the platform did not know about yet. Shared systems (CRM, Payments,
+# Service Operations, Policy) come from the platform and are reused as-is.
+systems:
+  cards: { display_name: Cards, base_url: "http://localhost:8100" }
+
+tools:
+  list_cards:
+    system: cards
+    http: { method: GET, path: "/cards/customers/{customer_id}/cards" }
+    label: Loading your cards
+    timeout_ms: 600
+    cache_s: 60
+    stale_ok_s: 600
+    expose: false
+  get_statements:
+    system: cards
+    http: { method: GET, path: "/cards/cards/{card_id}/statements" }
+    params: { card_id: { type: string } }
+    required: [card_id]
+    label: Loading your card statements
+    timeout_ms: 800
+    cache_s: 300
+    stale_ok_s: 3600
+    expose: false
+  get_transactions:
+    system: cards
+    http: { method: GET, path: "/cards/cards/{card_id}/transactions" }
+    params: { card_id: { type: string }, since: { type: string }, until: { type: string } }
+    required: [card_id]
+    label: Loading your card transactions
+    timeout_ms: 800
+    cache_s: 60
+    stale_ok_s: 600
+    expose: false
+  get_emi_plans:
+    system: cards
+    http: { method: GET, path: "/cards/cards/{card_id}/emi-plans" }
+    params: { card_id: { type: string } }
+    required: [card_id]
+    label: Checking your card EMIs
+    timeout_ms: 800
+    cache_s: 300
+    stale_ok_s: 3600
+    expose: false
+
+  card_summary:
+    handler: card_summary
+    label: Checking your card
+    description: >-
+      Current card position: latest statement total, minimum amount due, due date, credit limit, and the
+      interest-free days for a purchase made today. Use for "what's my card due", "minimum due", "when is my
+      card bill due", "how many interest-free days".
+    params:
+      card_id: { type: string, description: "Omit to use the card in focus." }
+  explain_statement:
+    handler: explain_statement
+    label: Comparing your last two card statements
+    description: >-
+      Explains why the latest card statement differs from the previous one: line-by-line changes, EMI
+      instalments and fees newly billed, the largest purchases, and transactions that could be disputed.
+    params:
+      card_id: { type: string, description: "Omit to use the card in focus." }
+
+actions:
+  dispute_card_transaction:
+    tier: confirm
+    system: ops
+    prepare: prepare_card_dispute
+    label: Preparing your card dispute
+    description: >-
+      Dispute a card transaction the customer does not recognise or was charged wrongly for. Identify it by
+      txn_id from explain_statement, or by amount (and optionally merchant or date).
+    params:
+      card_id: { type: string }
+      txn_id: { type: string }
+      amount: { type: number }
+      reason: { type: string }
+    required: [reason]
+
+intents:
+  - id: card_statement
+    match: ["card.{0,20}(statement|bill).{0,40}(higher|more|increase|went up|jump|why)", "why.{0,30}card.{0,20}(statement|bill)", "statement.{0,15}higher"]
+    tool: explain_statement
+  - id: card_due
+    match: ["minimum (amount )?due", "card.{0,20}(due|bill|pay)", "interest.free"]
+    tool: card_summary
+  - id: card_dispute
+    match: ["dispute.{0,40}(₹|rs|charge|transaction|purchase)", "(don't|do not) recogni[sz]e"]
+    tool: dispute_card_transaction
+    args: { amount: $amount, reason: $text }
+    speculative: false
