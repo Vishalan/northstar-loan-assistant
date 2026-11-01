@@ -10,7 +10,7 @@ an adapter you can point at a cloud service or your own hardware.
 
 | | |
 |---|---|
-| **Demo video** (60 s) | https://vishalan.github.io/northstar-loan-assistant/demo/ (file: [docs/demo/northstar.mp4](docs/demo/northstar.mp4)) |
+| **Demo video** (60 s) | https://vishalan.com/northstar-loan-assistant/demo/ (file: [docs/demo/northstar.mp4](docs/demo/northstar.mp4)) |
 | **Interactive architecture**, swappable modules and a load simulator for 1,000 concurrent conversations | https://claude.ai/artifact/H3BRFCgnS9ZAsyuzPyfknH |
 | **Architecture write-up**: decisions, trade-offs, scale, production path | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | **Latency and performance** measurements, with the report behind each number | [docs/performance.md](docs/performance.md) |
@@ -19,7 +19,7 @@ an adapter you can point at a cloud service or your own hardware.
 | Self-hosted models on a GPU box | [deploy/selfhosted/README.md](deploy/selfhosted/README.md) |
 | API and event contract | [docs/api-contract.md](docs/api-contract.md) |
 
-[![Demo video](docs/demo/northstar.jpg)](https://vishalan.github.io/northstar-loan-assistant/demo/)
+[![Demo video](docs/demo/northstar.jpg)](https://vishalan.com/northstar-loan-assistant/demo/)
 
 ## Run it (no keys needed)
 
