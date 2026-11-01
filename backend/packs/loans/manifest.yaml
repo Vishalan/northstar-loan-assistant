@@ -160,7 +160,7 @@ actions:
       reason: { type: string, description: "Short reason in the customer's words." }
     required: [txn_id, reason]
   generate_statement:
-    tier: read
+    tier: confirm  # it files a service request, so the customer says yes first
     system: ops
     prepare: prepare_statement
     label: Generating your statement
@@ -205,6 +205,8 @@ intents:
   - id: payments_any
     match: ["payments?", "debits?", "transactions?"]
     tool: payment_history
+    combine: false
   - id: loan_any
     match: ["\\bemi\\b", "\\bdue\\b", "\\bloan\\b", "tenure"]
     tool: loan_overview
+    combine: false

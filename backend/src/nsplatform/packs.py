@@ -108,6 +108,7 @@ class Intent:
     tool: str
     args: dict
     speculative: bool = True
+    combine: bool = True  # may be answered alongside another intent in the same question
 
 
 @dataclass
@@ -249,7 +250,7 @@ class Registry:
             self.policy.load_file(rules_file, manifest["pack"])
 
         intents = [Intent(i["id"], manifest["pack"], [re.compile(p, re.I) for p in i["match"]], f"{ns}_{i['tool']}",
-                          i.get("args") or {}, i.get("speculative", True))
+                          i.get("args") or {}, i.get("speculative", True), i.get("combine", True))
                    for i in manifest.get("intents") or []]
         for intent in intents:
             if intent.tool not in tools and intent.tool not in actions:
@@ -325,16 +326,49 @@ class Registry:
         return out
 
 
-def match_intents(packs: list[Pack], text: str) -> list[Intent]:
-    """Intents whose patterns match, most specific (longest matched span) first; ties keep manifest order."""
+def match_intent_spans(packs: list[Pack], text: str) -> list[tuple[Intent, int, int]]:
+    """(intent, start, end) of each intent's longest match, most specific first; ties keep manifest order."""
     hits = []
     for pack in packs:
         for intent in pack.intents:
-            spans = [m.end() - m.start() for p in intent.patterns if (m := p.search(text))]
-            if spans:
-                hits.append((max(spans), intent))
-    hits.sort(key=lambda h: -h[0])
-    return [intent for _, intent in hits]
+            found = [m for p in intent.patterns if (m := p.search(text))]
+            if found:
+                best = max(found, key=lambda m: m.end() - m.start())
+                hits.append((intent, best.start(), best.end()))
+    hits.sort(key=lambda h: -(h[2] - h[1]))
+    return hits
+
+
+def match_intents(packs: list[Pack], text: str) -> list[Intent]:
+    return [intent for intent, _, _ in match_intent_spans(packs, text)]
+
+
+NEGATION = re.compile(r"\b(don'?t|do not|doesn'?t|no need|not|never|without|stop)\b[^.?!,]{0,24}$", re.I)
+
+
+def negated(text: str, start: int) -> bool:
+    """True if the words just before a match negate it: "I don't want a statement", "no need to file a dispute"."""
+    return bool(NEGATION.search(text[max(0, start - 40):start]))
+
+
+def plan_intents(packs: list[Pack], text: str, reads: set[str], limit: int = 3) -> list[Intent]:
+    """The best intent, plus other read-only intents asked about elsewhere in the same message ("Why did my EMI
+    go up? And if I prepay ₹50,000 …"). Extra intents must match a part of the text no chosen intent covers, call
+    a different tool, and not be a broad last resort (combine: false). Actions are never added: one per turn."""
+    # an action the customer negated is never proposed, whatever else matched
+    hits = [h for h in match_intent_spans(packs, text) if h[0].tool in reads or not negated(text, h[1])]
+    if not hits:
+        return []
+    chosen = [hits[0]]
+    for intent, start, end in hits[1:]:
+        if len(chosen) == limit:
+            break
+        if not intent.combine or intent.tool not in reads or chosen[0][0].tool not in reads:
+            continue
+        if any(intent.tool == c.tool for c, _, _ in chosen) or any(start < ce and cs < end for _, cs, ce in chosen):
+            continue
+        chosen.append((intent, start, end))
+    return [intent for intent, _, _ in chosen]
 
 
 def tool_label(registry: Registry, name: str) -> str:

@@ -77,8 +77,9 @@ latency per stage, per system and per voice step; `/evals` shows the last golden
 ## Tests and evidence
 
 ```bash
-make test     # backend pytest (72), speech service (8, Apple Silicon), web unit tests (15), typecheck, lint
+make test     # backend pytest (75), speech service (8, Apple Silicon), web unit tests (15), typecheck, lint
 make eval     # golden set: 46 questions across 3 packs -> docs/evals/latest.md
+make eval-heldout  # 17 reworded questions (Hinglish, negations, two-part, typos) never used to tune the intents
 make bench    # journey latency, cold cache, realistic and bad-day backends -> docs/perf/
 make load     # 1,000 concurrent sessions (start the API with LLM_MODE=stub TURN_RATE_LIMIT=100000)
 ```
@@ -88,6 +89,8 @@ make load     # 1,000 concurrent sessions (start the API with LLM_MODE=stub TURN
 | Golden set, deterministic planner | 46/46, figure accuracy 1.0 |
 | Golden set, Claude Haiku 5.5 | 46/46, figure accuracy 1.0, first token p50 2.0 s |
 | Golden set, Qwen3 14B on the RTX 3090 | 40/46, turn p50 7.7 s |
+| Held-out reworded questions, deterministic planner | 12/17: regex intents miss new wording |
+| Held-out reworded questions, Claude Haiku 5.5 | 16/17, figure accuracy 1.0 (the miss asked for a dispute reason instead of proposing) |
 | Journeys with Claude Haiku 5.5, cold cache | 36/36 turns completed, first token p50 2.1–4.0 s |
 | Load, 1,000 concurrent sessions, model stubbed | 9,455 turns in 4 minutes, 0 failures, first token p50 410 ms |
 

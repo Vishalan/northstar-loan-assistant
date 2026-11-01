@@ -19,7 +19,7 @@ import anthropic
 
 from nsplatform import telemetry
 from nsplatform.money import fmt_date
-from nsplatform.packs import ToolContext, ToolOutput, match_intents, tool_label
+from nsplatform.packs import ToolContext, ToolOutput, match_intents, plan_intents, tool_label
 from orchestrator import grounding
 from orchestrator.parsing import is_affirmative, normalize_speech, parse_amount, parse_mode, parse_txn
 from orchestrator.llm import cost_usd, is_retryable, same_model
@@ -419,24 +419,31 @@ class Turn:
                               + (" and enter the one-time password." if pending["tier"] == "confirm_otp" else "."))
             return
         packs = registry.active_packs(self.session["products"])
-        intents = match_intents(packs, normalize_speech(self.text))
+        heard = normalize_speech(self.text)
+        intents = plan_intents(packs, heard, set(registry.tools))
         if not intents:
-            await self._speak(HELP)
+            declined = any(i.tool in registry.actions for i in match_intents(packs, heard))
+            await self._speak("Okay, I won't file anything. " + HELP if declined else HELP)
             return
-        intent = intents[0]
-        args = self._resolve_args(intent.args)
-        target = registry.tools.get(intent.tool) or registry.actions.get(intent.tool)
-        missing = [r for r in target.required if r not in args]
-        if missing == ["amount"]:
-            await self._speak("How much would you like to pay towards the loan?")
-            return
-        if missing == ["mode"]:
-            await self._speak("Would you prefer to keep your EMI and finish sooner, or keep the tenure and lower your EMI?")
-            return
-        if missing:
-            await self._speak("I need a little more detail for that. " + HELP)
-            return
-        out = await self.call_tool(intent.tool, args)
+        runnable, ask = [], None
+        for intent in intents:
+            args = self._resolve_args(intent.args)
+            target = registry.tools.get(intent.tool) or registry.actions.get(intent.tool)
+            missing = [r for r in target.required if r not in args]
+            if not missing:
+                runnable.append((intent, args))
+            elif ask is None:
+                ask = ("How much would you like to pay towards the loan?" if missing == ["amount"] else
+                       "Would you prefer to keep your EMI and finish sooner, or keep the tenure and lower your EMI?"
+                       if missing == ["mode"] else "I need a little more detail for that. " + HELP)
+        # several read-only questions in one message run in parallel and are answered in the order asked about
+        outs = await asyncio.gather(*(self.call_tool(i.tool, a) for i, a in runnable))
+        parts = [self._fallback_text(out) for out in outs]
+        if ask:
+            parts.append(ask)
+        await self._speak(" ".join(p for p in parts if p))
+
+    def _fallback_text(self, out: ToolOutput) -> str:
         if out.status in ("ok", "degraded"):
             text = out.data.get("summary") or out.data.get("read_back") or out.data.get("message") or ""
             if out.data.get("result") == "awaiting_customer_confirmation":
@@ -446,12 +453,11 @@ class Turn:
                                .replace("Shall I go ahead?", "Confirm on screen to file it.")
             if out.status == "degraded" and out.message:
                 text += f" Note: {out.message}"
-            await self._speak(text or "Done.")
-        elif out.status == "refused":
-            await self._speak(out.data.get("policy") or out.message or "That isn't possible on this account.")
-        else:
-            await self._speak((out.message or "That system isn't responding").rstrip(".") +
-                              ". I can try again in a moment, or raise a ticket for you.")
+            return text or "Done."
+        if out.status == "refused":
+            return out.data.get("policy") or out.message or "That isn't possible on this account."
+        return (out.message or "That system isn't responding").rstrip(".") + \
+            ". I can try again in a moment, or raise a ticket for you."
 
 
 def action_result_card(result: dict) -> dict:

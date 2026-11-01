@@ -33,11 +33,11 @@ def _planner_model(settings) -> str:
     return settings.models_for(PROVIDERS[settings.llm_provider])[0]
 
 
-def load_cases(only: str | None) -> list[dict]:
+def load_cases(only: str | None, case_set: str = "golden") -> list[dict]:
     import yaml
 
     cases = []
-    for file in sorted((ROOT / "packs").glob("*/evals/golden.yaml")):
+    for file in sorted((ROOT / "packs").glob(f"*/evals/{case_set}.yaml")):
         for case in yaml.safe_load(file.read_text())["cases"]:
             case["pack"] = file.parts[-3]
             if not only or case["id"].startswith(only):
@@ -113,6 +113,9 @@ async def run_case(api, case: dict, seed: str) -> dict:
     for t in case.get("tools", []):
         if t not in tools:
             failures.append(f"tool {t} not called (called: {tools or 'none'})")
+    for t in case.get("forbid_tools", []):  # e.g. an action the customer said they did not want
+        if t in tools or t in proposed:
+            failures.append(f"{t} ran although forbidden")
     if case.get("action") and case["action"] not in proposed and case["action"] not in tools:
         failures.append(f"action {case['action']} not proposed")
     if completed is None:
@@ -144,6 +147,8 @@ async def main():
     ap.add_argument("--url", help="run against a live orchestrator instead of in-process")
     ap.add_argument("--chaos", default="realistic", help="in-process chaos preset: calm | realistic | bad_day | fast")
     ap.add_argument("--only", help="run case ids starting with this prefix")
+    ap.add_argument("--set", dest="case_set", default="golden",
+                    help="golden (default) | heldout: reworded questions never used to tune the intents")
     ap.add_argument("--concurrency", type=int, default=4)
     args = ap.parse_args()
 
@@ -175,7 +180,7 @@ async def main():
         api = httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(settings, platform)),
                                 base_url="http://api", timeout=60)
 
-    cases = load_cases(args.only)
+    cases = load_cases(args.only, args.case_set)
     sem = asyncio.Semaphore(args.concurrency)
 
     async def guarded(i, case):
@@ -202,12 +207,14 @@ async def main():
         "turn_total_p95_ms": pct([r.get("total_ms") for r in results], 0.95),
         "cases": results,
     }
-    out = ROOT / "var" / "evals"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "latest.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
+    if args.case_set == "golden":  # the /evals page shows the golden run
+        out = ROOT / "var" / "evals"
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "latest.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
     docs = ROOT.parent / "docs" / "evals"
     docs.mkdir(parents=True, exist_ok=True)
-    lines = [f"# Golden-set eval — {summary['run_at']}", "", f"Target: {summary['target']}", "",
+    title = "Golden-set eval" if args.case_set == "golden" else "Held-out eval (reworded questions)"
+    lines = [f"# {title} — {summary['run_at']}", "", f"Target: {summary['target']}", "",
              f"- Passed: **{summary['passed']}/{summary['total']}**",
              f"- Figure accuracy (cases with expected figures): **{summary['figure_accuracy']}**",
              f"- Grounding replacements: {summary['grounding_replacements']}",
@@ -217,7 +224,11 @@ async def main():
     for r in results:
         lines.append(f"| {r['id']} | {r['pack']} | {r.get('channel', 'text')} | {'pass' if r['passed'] else 'FAIL'} | "
                      f"{r.get('first_token_ms') or ''} | {r.get('total_ms') or ''} | {r.get('reason', '')} |")
-    (docs / "latest.md").write_text("\n".join(lines) + "\n")
+    if args.case_set == "golden":
+        name = "latest.md"
+    else:  # heldout-fallback.md, heldout-claude-haiku-5-5.md, ...
+        name = f"heldout-{_planner_model(settings).replace(':', '-') if planner == 'llm' else planner}.md"
+    (docs / name).write_text("\n".join(lines) + "\n")
     print("\n".join(lines[:9]))
     for r in results:
         if not r["passed"]:

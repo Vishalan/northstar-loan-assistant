@@ -1,0 +1,66 @@
+# Held-out questions: reworded, Hinglish, negated, two-part and misspelt versions of the loan journeys.
+# Written after the intents and never used to tune them; run with `evals/run.py --set heldout`.
+cases:
+  - id: H-L01-instalment-up
+    customer: C1001
+    question: Why has my monthly instalment gone up?
+    contains: ["₹17,416"]
+    tools: [loans_explain_emi_change]
+  - id: H-L02-hinglish-why
+    customer: C1001
+    question: Mera EMI kyun badh gaya?
+    tools: [loans_explain_emi_change]
+  - id: H-L03-50k-colloquial
+    customer: C1001
+    question: Suppose I put in 50k extra now, what do I save on interest?
+    contains: ["₹22,883"]
+    tools: [loans_prepayment_options]
+  - id: H-L04-next-due-reworded
+    customer: C1001
+    question: When's the next instalment due and how much is it?
+    contains: ["₹17,416", "5 Nov 2026"]
+  - id: H-L05-hinglish-next
+    customer: C1001
+    question: Agla EMI kab hai?
+    contains: ["5 Nov 2026"]
+  - id: H-L06-two-part
+    customer: C1001
+    question: What's my next EMI, and what would ₹20,000 extra do to my tenure?
+    contains: ["₹17,416", "₹9,483"]
+    tools: [loans_loan_overview, loans_prepayment_options]
+  - id: H-L07-hinglish-two-part
+    customer: C1001
+    question: EMI increase ka reason batao, aur ₹50,000 prepay karne se kitna bachega?
+    contains: ["₹22,883"]
+    tools: [loans_explain_emi_change, loans_prepayment_options]
+  - id: H-L08-typo
+    customer: C1001
+    question: whats my nxt emi
+    contains: ["₹17,416"]
+  - id: H-L09-bounced
+    customer: C1002
+    question: Did any of my auto-debits bounce recently?
+    contains: ["10 Sep 2026"]
+  - id: H-L10-charge-reason
+    customer: C1002
+    question: Why was I charged 590 rupees?
+    contains: ["₹590"]
+  - id: H-L11-no-dispute
+    customer: C1002
+    question: Please don't raise a dispute, just explain the double charge.
+    contains: ["₹590"]
+    forbid_tools: [loans_raise_payment_dispute]
+  - id: H-L12-close-early
+    customer: C1003
+    question: Can I close the loan early without paying a penalty?
+    contains: ["20 Feb 2027"]
+  - id: H-L13-no-statement
+    customer: C1003
+    question: I don't want a statement, just tell me when my EMI is due.
+    contains: ["20 Nov 2026"]
+    forbid_tools: [loans_generate_statement]
+  - id: H-L14-nothing-to-file
+    customer: C1003
+    question: No need to file anything, what's my EMI amount?
+    contains: ["₹10,181"]
+    forbid_tools: [loans_generate_statement, loans_request_foreclosure]

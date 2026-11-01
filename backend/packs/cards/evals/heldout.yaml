@@ -1,0 +1,14 @@
+# Held-out questions for the card pack (see packs/loans/evals/heldout.yaml).
+cases:
+  - id: H-C01-bill-higher
+    customer: C1004
+    question: My credit card bill is higher than usual, why?
+    tools: [cards_explain_statement]
+  - id: H-C02-contest
+    customer: C1004
+    question: I want to contest the ₹4,299 charge on my card.
+    action: cards_dispute_card_transaction
+  - id: H-C03-hinglish-due
+    customer: C1004
+    question: Card ka bill kab tak bharna hai?
+    contains: ["4 Nov 2026"]

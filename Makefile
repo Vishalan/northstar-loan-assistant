@@ -1,5 +1,5 @@
 # Local development without Docker. Requires uv and Node 20+.
-.PHONY: install up mocks api web speech test eval bench load stop reset selfhosted selfhosted-check selfhosted-deploy
+.PHONY: install up mocks api web speech test eval eval-heldout bench load stop reset selfhosted selfhosted-check selfhosted-deploy
 
 install:
 	cd backend && uv sync
@@ -39,6 +39,9 @@ test:
 
 eval:
 	cd backend && uv run python evals/run.py
+
+eval-heldout:  ## reworded questions never used to tune the intents -> docs/evals/heldout-<planner>.md
+	cd backend && uv run python evals/run.py --set heldout
 
 bench:
 	cd backend && uv run python bench/journeys.py --runs 20 --cold
